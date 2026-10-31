@@ -40,7 +40,7 @@
 ## À faire ou à valider en environnement de déploiement
 
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
-- [x] Vérifier la syntaxe de `deploy/update-image.sh` avec Bash (`bash -n`) ; le script n’a pas été exécuté car Podman/systemd ne sont pas présents ici.
+- [x] Vérifier la syntaxe Bash (`bash -n`) des trois scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh` et `deploy/entrypoint.sh` avec Git Bash ; Podman/systemd restent absents ici.
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
 - [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
@@ -70,7 +70,7 @@
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.
 - [ ] Valider sur l’hôte Linux que `crowdsec -t` accepte la configuration de déploiement et présente des erreurs compréhensibles dans l’éditeur.
-- [ ] Vérification locale Windows tentée sur CrowdSec 1.6 : le binaire n’a pas pu lire `local_api_credentials.yaml` ni tourner son log (`Access is denied`), y compris après relance ; ce résultat ne valide pas la configuration.
+- [x] Revalider CrowdSec 1.6 Windows : `crowdsec -t` échoue avant le test de configuration car l’accès à `local_api_credentials.yaml` et la rotation du journal sont refusés (`Access is denied`) ; cela ne valide pas le YAML.
 - [ ] Tester le rechargement `SIGHUP` sur le conteneur autonome et documenter/valider l’action de reload manuelle en mode side-by-side.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
 - [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
