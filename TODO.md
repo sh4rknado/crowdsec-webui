@@ -31,7 +31,7 @@
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 43 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 45 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -42,11 +42,14 @@
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
 - [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
 - [x] Vérifier avec CrowdSec 1.6 installé que `cscli hub list -a -o json` retourne un objet de groupes (`collections`, `parsers`, etc.) ; le parseur de l’application a été adapté et testé contre cette structure.
-- [ ] Tester les routes `/health` et `/v1/decisions` avec une vraie clé bouncer et vérifier la lecture de décisions.
+- [x] Tester avec TestServer l’endpoint applicatif `/health` (HTTP 200 + JSON).
+- [ ] Tester le LAPI `/v1/decisions` sur CrowdSec réel avec une vraie clé bouncer.
 - [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête Bearer et repli cscli quand l’API échoue.
 - [x] Tester la génération des commandes cscli Hub pour collections, parsers, scénarios, postoverflows, AppSec et contexts ; tester aussi la suppression d’alerte par ID.
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
-- [ ] Tester les parcours login/logout et l’accès aux pages authentifiées via HTTP sur l’hôte de déploiement (l’accès réseau local est bloqué dans cet environnement).
+- [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
+- [x] Tester l’émission du cookie Identity, son accès à `/decisions`, le rejet d’un mot de passe erroné et l’expiration du cookie à la déconnexion.
+- [ ] Tester les actions interactives login/logout et le cookie d’authentification dans un navigateur sur l’hôte de déploiement.
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
 - [x] Tester localement le backup `.tgz` avec YAML imbriqué et la protection Load/Save contre un junction/lien symbolique qui sort de la whitelist.
 - [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide.
