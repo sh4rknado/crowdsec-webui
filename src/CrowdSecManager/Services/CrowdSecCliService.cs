@@ -331,14 +331,39 @@ public static class CrowdSecCommandBuilder
         if (string.IsNullOrWhiteSpace(ipOrRange)) return false;
         var target = ipOrRange.Trim();
         var slash = target.IndexOf('/');
-        if (slash < 0) return IPAddress.TryParse(target, out _);
+        if (slash < 0) return IsSupportedDecisionAddress(target, out _);
         if (slash == 0 || slash != target.LastIndexOf('/')) return false;
-        if (!IPAddress.TryParse(target[..slash], out var address)
+        if (!IsSupportedDecisionAddress(target[..slash], out var address)
             || !int.TryParse(target[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var prefix))
             return false;
 
         var maxPrefix = address.AddressFamily == AddressFamily.InterNetwork ? 32 : 128;
         return prefix >= 0 && prefix <= maxPrefix;
+    }
+
+    private static bool IsSupportedDecisionAddress(string value, out IPAddress address)
+    {
+        address = IPAddress.None;
+        if (!IPAddress.TryParse(value, out var parsed)) return false;
+
+        if (parsed.AddressFamily == AddressFamily.InterNetwork)
+        {
+            // .NET accepts legacy shorthand, octal and hexadecimal IPv4 forms;
+            // CrowdSec operators expect conventional four-octet dotted decimal.
+            if (!string.Equals(value, parsed.ToString(), StringComparison.Ordinal)) return false;
+            address = parsed;
+            return true;
+        }
+
+        if (parsed.AddressFamily != AddressFamily.InterNetworkV6
+            || !value.Contains(':')
+            || value.Contains('%')
+            || value.Contains('[')
+            || value.Contains(']'))
+            return false;
+
+        address = parsed;
+        return true;
     }
 
     public static IReadOnlyList<string> TestConfig(string configDir)

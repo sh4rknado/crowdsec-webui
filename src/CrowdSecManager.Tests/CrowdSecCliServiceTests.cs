@@ -150,7 +150,13 @@ public sealed class CrowdSecCliServiceTests
     [InlineData("2001:db8::/129")]
     [InlineData("203.0.113.1/not-a-prefix")]
     [InlineData("203.0.113.1/24/8")]
-    public void DecisionTargetValidation_RejectsInvalidCidrPrefix(string target)
+    [InlineData("1")]
+    [InlineData("127.1")]
+    [InlineData("0x7f000001")]
+    [InlineData("0300.0250.0001.0001")]
+    [InlineData("fe80::1%12")]
+    [InlineData("[2001:db8::1]")]
+    public void DecisionTargetValidation_RejectsUnsupportedOrInvalidTarget(string target)
         => Assert.False(CrowdSecCommandBuilder.IsValidDecisionTarget(target));
 
     private sealed class RecordingProcessRunner(string stdout, int exitCode = 0, string stderr = "") : ICrowdSecProcessRunner
