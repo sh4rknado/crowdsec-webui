@@ -229,6 +229,36 @@ public sealed class ThreatFeedServiceTests
         Assert.Single(bus.GetSnapshot().RecentEvents);
     }
 
+    [Fact]
+    public async Task ProcessBatch_PrunesHistoryOlderThanThirtyDaysAtCleanupBoundary()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        db.ThreatHistory.AddRange(Enumerable.Range(1, 100).Select(id => new ThreatHistoryEntry
+        {
+            AlertId = id,
+            CreatedAt = DateTime.UtcNow.AddDays(-31),
+            SourceIp = $"203.0.113.{id}"
+        }));
+        await db.SaveChangesAsync();
+        var service = CreateService(provider, new ThreatMapEventBus());
+
+        await service.ProcessBatchAsync(new[]
+        {
+            new CsAlert { Id = 101, Source = "203.0.113.101", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+        }, Array.Empty<CsDecision>(), db);
+
+        Assert.Equal(1, await db.ThreatHistory.CountAsync());
+        Assert.Equal(101, (await db.ThreatHistory.SingleAsync()).AlertId);
+    }
+
     private sealed class FixedGeoIpService : IGeoIpService
     {
         public GeoPoint Home { get; } = new() { Latitude = 50, Longitude = 4, City = "Home" };
