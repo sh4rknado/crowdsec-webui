@@ -70,7 +70,7 @@
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.
 - [ ] Valider sur l’hôte Linux que `crowdsec -t` accepte la configuration de déploiement et présente des erreurs compréhensibles dans l’éditeur.
-- [x] Revalider CrowdSec 1.6 Windows : `crowdsec -t` échoue avant le test de configuration car l’accès à `local_api_credentials.yaml` et la rotation du journal sont refusés (`Access is denied`) ; cela ne valide pas le YAML.
+- [x] Validation isolée de CrowdSec 1.6 Windows : `crowdsec -t -no-api -no-capi` accepte le `config.yaml` courant avec copies temporaires des chemins DB/log et des credentials factices. Cela valide le chargement local de la configuration sans tester LAPI/CAPI ni remplacer la validation Linux ; l’accès aux credentials/journaux actifs reste refusé.
 - [ ] Tester le rechargement `SIGHUP` sur le conteneur autonome et documenter/valider l’action de reload manuelle en mode side-by-side.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
 - [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
