@@ -3,10 +3,8 @@ using CrowdSecManager.Data;
 using CrowdSecManager.Models;
 using CrowdSecManager.Services;
 using System.Collections;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
