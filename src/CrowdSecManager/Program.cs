@@ -126,7 +126,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "DB bootstrap failed");
+        app.Logger.LogCritical(ex, "DB bootstrap or administrator seeding failed; refusing to start without a usable identity store.");
+        throw;
     }
 }
 

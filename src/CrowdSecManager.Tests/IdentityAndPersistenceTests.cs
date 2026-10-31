@@ -12,6 +12,33 @@ namespace CrowdSecManager.Tests;
 public sealed class IdentityAndPersistenceTests
 {
     [Fact]
+    public async Task DbSeeder_RefusesFirstBootWithoutAdminPassword()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ADMIN_USER"] = "operator" })
+            .Build());
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        services.AddIdentityCore<ApplicationUser>()
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<AppDbContext>();
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => DbSeeder.SeedAsync(scope.ServiceProvider));
+
+        Assert.Contains("ADMIN_PASSWORD must be set on first boot", error.Message);
+        Assert.Equal(0, await db.Users.CountAsync());
+    }
+
+    [Fact]
     public async Task AppDatabase_PersistsThreatHistoryInSqlite()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -78,6 +105,9 @@ public sealed class IdentityAndPersistenceTests
             var user = await users.FindByNameAsync("operator");
             Assert.NotNull(user);
             Assert.True(await users.CheckPasswordAsync(user!, "Strong!Password2026"));
+            Assert.True(await users.IsInRoleAsync(user!, "Administrator"));
+            Assert.True((await users.RemoveFromRoleAsync(user!, "Administrator")).Succeeded);
+            await DbSeeder.SeedAsync(scope.ServiceProvider);
             Assert.True(await users.IsInRoleAsync(user!, "Administrator"));
             Assert.Equal(1, await db.Users.CountAsync());
             Assert.Equal(1, await db.Roles.CountAsync());

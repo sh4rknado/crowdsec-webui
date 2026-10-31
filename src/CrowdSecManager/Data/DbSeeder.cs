@@ -17,34 +17,51 @@ public static class DbSeeder
 
         const string AdminRole = "Administrator";
         if (!await roleMgr.RoleExistsAsync(AdminRole))
-            await roleMgr.CreateAsync(new IdentityRole(AdminRole));
+        {
+            var createRole = await roleMgr.CreateAsync(new IdentityRole(AdminRole));
+            if (!createRole.Succeeded)
+            {
+                var errors = string.Join(", ", createRole.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Could not create the Administrator role: {errors}");
+            }
+        }
 
         var adminUser = cfg["ADMIN_USER"] ?? "admin";
         var existing = await userMgr.FindByNameAsync(adminUser);
-        if (existing is not null) return;
-
-        var password = cfg["ADMIN_PASSWORD"]
-                       ?? throw new InvalidOperationException(
-                           "ADMIN_PASSWORD must be set on first boot to seed the admin user.");
-
-        var user = new ApplicationUser
+        if (existing is null)
         {
-            UserName = adminUser,
-            Email = adminUser,
-            EmailConfirmed = true,
-            DisplayName = "CrowdSec Manager Administrator",
-            SecurityStamp = Guid.NewGuid().ToString("N")
-        };
+            var password = cfg["ADMIN_PASSWORD"]
+                           ?? throw new InvalidOperationException(
+                               "ADMIN_PASSWORD must be set on first boot to seed the admin user.");
 
-        var create = await userMgr.CreateAsync(user, password);
-        if (!create.Succeeded)
-        {
-            var errors = string.Join(", ", create.Errors.Select(e => e.Description));
-            logger.LogError("Could not seed admin user: {Errors}", errors);
-            return;
+            existing = new ApplicationUser
+            {
+                UserName = adminUser,
+                Email = adminUser,
+                EmailConfirmed = true,
+                DisplayName = "CrowdSec Manager Administrator",
+                SecurityStamp = Guid.NewGuid().ToString("N")
+            };
+
+            var createUser = await userMgr.CreateAsync(existing, password);
+            if (!createUser.Succeeded)
+            {
+                var errors = string.Join(", ", createUser.Errors.Select(e => e.Description));
+                logger.LogError("Could not seed admin user: {Errors}", errors);
+                throw new InvalidOperationException($"Could not seed admin user: {errors}");
+            }
         }
 
-        await userMgr.AddToRoleAsync(user, AdminRole);
-        logger.LogInformation("Seeded admin user '{User}' with Administrator role.", adminUser);
+        if (!await userMgr.IsInRoleAsync(existing, AdminRole))
+        {
+            var addRole = await userMgr.AddToRoleAsync(existing, AdminRole);
+            if (!addRole.Succeeded)
+            {
+                var errors = string.Join(", ", addRole.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Could not assign Administrator role to '{adminUser}': {errors}");
+            }
+        }
+
+        logger.LogInformation("Seeded administrator user '{User}'.", adminUser);
     }
 }
