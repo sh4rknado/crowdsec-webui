@@ -57,14 +57,17 @@ The application talks to CrowdSec through **two** channels:
    bouncers, machines, alerts. The wrapper in
    `Services/CrowdSecCliService.cs` always appends `-o json` for parseable
    commands and streams stdout/stderr with a configurable timeout.
-2. **CrowdSec Local API (LAPI)** on `http://127.0.0.1:8080` — for live alert
-   and decision polling done by the background `ThreatFeedService`, which
-   geolocates new attacker IPs and pushes them to the browser through a
-   SignalR hub. The LAPI client authenticates with a bearer token issued by
-   `cscli bouncers add crowdsec-manager` (handled by the entrypoint script).
+2. **CrowdSec Local API (LAPI)** on `http://127.0.0.1:8080` — the bouncer
+   token is used for decision reads and the health indicator. CrowdSec limits
+   bouncer credentials to decisions, so alert history is read with `cscli`
+   using the machine credentials from the mounted CrowdSec configuration.
+   `ThreatFeedService` polls alerts, geolocates new attacker IPs and sends
+   them to the browser through the app's SignalR hub.
 
-The two channels are complementary: LAPI is faster and gives streaming
-updates, while `cscli` covers write-side operations the API does not expose.
+The LAPI is polled for decision status. `cscli` handles alert history and
+administrative operations. The threat feed is polled at the configured
+interval (8 seconds by default); SignalR pushes each detected change from
+the manager to connected browsers.
 
 ---
 

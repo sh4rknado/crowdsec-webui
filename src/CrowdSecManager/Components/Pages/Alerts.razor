@@ -1,7 +1,6 @@
 @page "/alerts"
 @attribute [Authorize]
 @inject ICrowdSecCliService Cli
-@inject ICrowdSecApiService Api
 @inject ILogger<Alerts> Log
 
 <PageTitle>Alerts &middot; CrowdSec Manager</PageTitle>
@@ -59,17 +58,14 @@
 
     private async Task Refresh()
     {
-        try { _list = (await Api.GetAlertsAsync(_limit)).ToList(); }
-        catch
-        {
-            try { _list = (await Cli.ListAlertsAsync(_limit)).ToList(); }
-            catch (Exception ex) { Log.LogDebug("alerts: {Msg}", ex.Message); }
-        }
+        try { _list = (await Cli.ListAlertsAsync(Math.Clamp(_limit, 1, 1000))).ToList(); }
+        catch (Exception ex) { Log.LogDebug("alerts: {Msg}", ex.Message); }
     }
 
     private async Task Delete(long id)
     {
-        await Cli.RunAsync("alerts", "delete", id.ToString());
+        var result = await Cli.RunAsync("alerts", "delete", "--id", id.ToString());
+        if (!result.Success) Log.LogWarning("Could not delete alert {Id}: {Error}", id, result.FlattenError());
         await Refresh();
     }
 

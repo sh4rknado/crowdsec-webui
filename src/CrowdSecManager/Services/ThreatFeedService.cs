@@ -69,14 +69,18 @@ public sealed class ThreatFeedService : BackgroundService
             return;
         }
 
-        var alerts = await api.GetAlertsAsync(100, ct);
+        // The manager authenticates to LAPI as a bouncer, which is intentionally
+        // limited to decisions. cscli uses machine credentials for alert history.
+        var alerts = await scope.ServiceProvider.GetRequiredService<ICrowdSecCliService>()
+            .ListAlertsAsync(100, ct);
         var decisions = await api.GetDecisionsAsync(ct);
-        var stats = await api.GetSnapshotStatsAsync(ct);
+        var stats = BuildStats(alerts, decisions);
 
         var fresh = alerts
-            .Where(a => _seenAlerts.TryAdd(a.Id, 0))
             .OrderBy(a => a.CreatedAt)
+            .Where(a => !_seenAlerts.ContainsKey(a.Id))
             .Take(20)
+            .Where(a => _seenAlerts.TryAdd(a.Id, 0))
             .ToList();
 
         foreach (var a in fresh)
@@ -87,7 +91,7 @@ public sealed class ThreatFeedService : BackgroundService
             await PersistHistoryAsync(db, ev, ct);
 
             // Evict oldest if cap reached
-            while (_recent.Count > _opt.MaxActiveArcs)
+            while (_recent.Count >= Math.Max(1, _opt.MaxActiveArcs))
             {
                 var oldest = _recent.OrderBy(x => x.Value.CreatedAt).FirstOrDefault();
                 if (oldest.Key is null || !_recent.TryRemove(oldest.Key, out _)) break;
@@ -106,20 +110,13 @@ public sealed class ThreatFeedService : BackgroundService
         var cli = scope.ServiceProvider.GetRequiredService<ICrowdSecCliService>();
         var alerts = await cli.ListAlertsAsync(100, ct);
         var decisions = await cli.ListDecisionsAsync(ct);
-        var stats = new ThreatMapStats
-        {
-            TotalAlerts = alerts.Count,
-            TotalDecisions = decisions.Count,
-            Last24hAlerts = alerts.Count(a => a.CreatedAt > DateTime.UtcNow.AddDays(-1)),
-            TopScenarios = alerts.GroupBy(a => a.Scenario ?? "unknown")
-                .OrderByDescending(g => g.Count()).Take(8)
-                .ToDictionary(g => g.Key!, g => g.Count())
-        };
+        var stats = BuildStats(alerts, decisions);
 
         var fresh = alerts
-            .Where(a => _seenAlerts.TryAdd(a.Id, 0))
             .OrderBy(a => a.CreatedAt)
+            .Where(a => !_seenAlerts.ContainsKey(a.Id))
             .Take(20)
+            .Where(a => _seenAlerts.TryAdd(a.Id, 0))
             .ToList();
 
         foreach (var a in fresh)
@@ -133,6 +130,17 @@ public sealed class ThreatFeedService : BackgroundService
 
         await _hub.Clients.All.StatsUpdated(stats);
     }
+
+    private static ThreatMapStats BuildStats(IReadOnlyList<CsAlert> alerts, IReadOnlyList<CsDecision> decisions)
+        => new()
+        {
+            TotalAlerts = alerts.Count,
+            TotalDecisions = decisions.Count,
+            Last24hAlerts = alerts.Count(a => a.CreatedAt > DateTime.UtcNow.AddDays(-1)),
+            TopScenarios = alerts.GroupBy(a => a.Scenario ?? "unknown")
+                .OrderByDescending(g => g.Count()).Take(8)
+                .ToDictionary(g => g.Key!, g => g.Count())
+        };
 
     private ThreatEvent? ToThreatEvent(CsAlert a)
     {

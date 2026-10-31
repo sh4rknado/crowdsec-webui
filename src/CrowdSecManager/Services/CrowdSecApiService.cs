@@ -20,13 +20,15 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
     private readonly HttpClient _http;
     private readonly CrowdSecOptions _opt;
     private readonly ILogger<CrowdSecApiService> _log;
+    private readonly ICrowdSecCliService _cli;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public CrowdSecApiService(HttpClient http, IOptions<CrowdSecOptions> opt,
-        ILogger<CrowdSecApiService> log)
+        ILogger<CrowdSecApiService> log, ICrowdSecCliService cli)
     {
         _opt = opt.Value;
         _log = log;
+        _cli = cli;
         var baseAddr = _opt.LocalApiUrl.TrimEnd('/');
         if (!baseAddr.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             baseAddr = "http://" + baseAddr;
@@ -57,14 +59,15 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
 
     public async Task<IReadOnlyList<CsAlert>> GetAlertsAsync(int limit = 100, CancellationToken ct = default)
     {
-        var list = await GetJsonAsync<List<CsAlert>>($"alerts?limit={limit}", ct);
-        return list ?? new List<CsAlert>();
+        // Bouncer tokens cannot access the alert search endpoint. Use cscli, which
+        // authenticates as the CrowdSec machine and can read the full alert history.
+        return await _cli.ListAlertsAsync(limit, ct);
     }
 
     public async Task<IReadOnlyList<CsDecision>> GetDecisionsAsync(CancellationToken ct = default)
     {
-        var list = await GetJsonAsync<List<CsDecision>>("decisions", ct);
-        return list ?? new List<CsDecision>();
+        var list = await GetJsonAsync<List<CsDecision>>("v1/decisions", ct);
+        return list ?? await _cli.ListDecisionsAsync(ct);
     }
 
     public async Task<ThreatMapStats> GetSnapshotStatsAsync(CancellationToken ct = default)

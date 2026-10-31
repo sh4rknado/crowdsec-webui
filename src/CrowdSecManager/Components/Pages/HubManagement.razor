@@ -144,7 +144,7 @@
 
     private async Task Upgrade(CsHubItem it)
     {
-        var r = await Cli.HubUpgradeAsync(it.Name);
+        var r = await Cli.UpgradeItemAsync(it.Type ?? "collections", it.Name!);
         _err = !r.Success; _msg = r.Success
             ? $"Upgraded {it.Name}."
             : $"Failed: {r.FlattenError() ?? r.Stderr}";

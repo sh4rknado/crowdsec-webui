@@ -59,11 +59,11 @@ CrowdSec already runs as a host systemd unit.
 | `AppDbContext` | Scoped | EF Core SQLite for app metadata: `ApplicationUser`, `IdentityRole`, `ThreatHistoryEntry`. |
 | `ApplicationUser` / `IdentityRole` | — | ASP.NET Identity entities. Roles seeded at first boot: `Administrator`. |
 | `ICrowdSecCliService` | Singleton | Wraps `cscli` via `Process.Start` with async stdout/stderr streaming, JSON output auto-append, configurable timeout. All hub/decisions/bouncers/machines/alerts commands go through this. |
-| `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CROWDSEC_BOUNCER_APIKEY`. Used for live alert/decision polling and snapshot stats. |
+| `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CROWDSEC_BOUNCER_APIKEY`; used for health and decision reads. Bouncer credentials cannot search alerts. |
 | `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over `GeoLite2-City.mmdb`. Falls back to a hash-derived location when no DB is mounted. Resolves private IPs to the home location. |
 | `IConfigFileService` | Scoped | Reads/writes the whitelisted CrowdSec YAML files (`config.yaml`, `profiles.yaml`, `acquis.yaml`, etc.). Validates with YamlDotNet before saving. Tar-backs up `/etc/crowdsec/` on demand. |
-| `ThreatFeedService` | Hosted (BackgroundService) | Polls LAPI every `ThreatFeed:PollIntervalSeconds` (default 8s), geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and broadcasts `ThreatEvent`s to all connected threat-map clients via `ThreatMapHub`. Falls back to `cscli` polling if LAPI is unreachable. |
-| `ThreatMapHub` | Transient (SignalR) | Strongly-typed hub (`IThreatMapClient`). Authorize attribute — only authenticated users can subscribe. Streams `ThreatSpotted`, `Snapshot`, `StatsUpdated` to browsers. |
+| `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and broadcasts `ThreatEvent`s to connected threat-map clients via `ThreatMapHub`. Falls back to `cscli` for decisions if LAPI is unreachable. |
+| `ThreatMapHub` | Transient (SignalR) | Strongly-typed hub (`IThreatMapClient`) broadcasting `ThreatSpotted`, `Snapshot` and `StatsUpdated`. **The hub endpoint currently has no authorization attribute; restrict access before exposing it beyond a trusted network.** |
 
 ### 2.3 Browser side
 
@@ -91,10 +91,11 @@ CrowdSec already runs as a host systemd unit.
         ▼
 [CS SQLite DB]  ── (LAPI write) ──►  [cscli lapi serve :8080]
                                               ▲
-                                              │ HTTP GET /alerts (poll every 8s)
-                                              │ Bearer: CROWDSEC_BOUNCER_APIKEY
+                                              │ cscli alerts list (poll every 8s)
                                               │
                                    [ThreatFeedService.PollOnceAsync]
+                                              │ LAPI GET /v1/decisions
+                                              │ Bearer: CROWDSEC_BOUNCER_APIKEY
                                               │
                                               │ for each new alert:
                                               │   1. Extract source IP
@@ -246,7 +247,7 @@ sudo firewall-cmd --reload
 | MaxMind DB missing | `GeoIpService.IsDatabaseAvailable == false`; dashboard card "GeoIP DB: missing" | Threat map plots IPs at hash-derived fallback locations | Drop `GeoLite2-City.mmdb` at `/var/lib/GeoIP/` and restart container |
 | cscli binary missing | `CrowdSecCliService.RunAsync` returns exit code -1 with "Failed to start cscli" | All hub/decisions/bouncers/machines pages fail with descriptive error | Rebuild the image; ensure the Dockerfile stage 2 is based on `crowdsecurity/crowdsec:latest` |
 | App DB locked / corrupt | EF Core throws `SqliteException` | Login fails; new threat events not persisted | Stop container, `cp /var/lib/crowdsec-manager/app.db /var/lib/crowdsec-manager/app.db.broken`, restart (DB is recreated on first boot via `EnsureCreated`) |
-| Bouncer API key rejected by LAPI | 401 in `CrowdSecApiService` logs; `IsReachableAsync` still returns true (health endpoint is unauthenticated) but alert/decision endpoints fail | Threat map shows stale data | `podman exec crowdsec-manager cscli bouncers add crowdsec-manager`, copy the key, set `CROWDSEC_BOUNCER_APIKEY` env, restart container |
+| Bouncer API key rejected by LAPI | Health may still succeed, but decision reads fail; alert history is read separately through `cscli` | Decision statistics may fall back to `cscli` | `podman exec crowdsec-manager cscli bouncers list`; register/copy a key and set `CROWDSEC_BOUNCER_APIKEY`, then restart the container |
 | Browser disconnected from Blazor circuit | `DisconnectedCircuitMaxRetained` (30) reached; user sees "Reconnecting…" overlay | Threat map canvas freezes (no new events until reconnect) | User reloads; server keeps the SignalR hub open |
 | Container OOM | `podman stats` shows memory pegged at limit; systemd restarts the unit | Cold restart of all services | Increase `LimitMemory` in the Quadlet; investigate with `dotnet-counters` |
 | Disk full on `/var/lib/crowdsec-manager/` | SQLite write errors; threat history persist fails silently (logged at Debug level) | Threat map degrades; login may fail | Clean old backups in `/var/lib/crowdsec-manager/backups/`; prune old `ThreatHistoryEntry` rows |

@@ -14,6 +14,7 @@ public interface ICrowdSecCliService
     Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default);
     Task<CliResult> HubUpdateAsync(CancellationToken ct = default);
     Task<CliResult> HubUpgradeAsync(string? item = null, CancellationToken ct = default);
+    Task<CliResult> UpgradeItemAsync(string type, string name, CancellationToken ct = default);
     Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default);
     Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default);
     Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit = 100, CancellationToken ct = default);
@@ -146,6 +147,12 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         return RunAsync(args, ct);
     }
 
+    public Task<CliResult> UpgradeItemAsync(string type, string name, CancellationToken ct = default)
+    {
+        type = NormalizeItemType(type);
+        return RunAsync(new[] { type, "upgrade", name }, ct);
+    }
+
     public Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default)
     {
         type = NormalizeItemType(type);
@@ -174,7 +181,8 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     public Task<CliResult> AddDecisionAsync(string ip, string duration = "4h",
         string? reason = null, string type = "ban", CancellationToken ct = default)
     {
-        var args = new List<string> { "decisions", "add", "-i", ip, "-d", duration, "-t", type };
+        var targetFlag = ip.Contains('/', StringComparison.Ordinal) ? "--range" : "--ip";
+        var args = new List<string> { "decisions", "add", targetFlag, ip, "-d", duration, "-t", type };
         if (!string.IsNullOrWhiteSpace(reason)) { args.Add("-r"); args.Add(reason); }
         return RunAsync(args, ct);
     }
@@ -184,7 +192,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     {
         var args = new List<string> { "decisions", "delete" };
         if (all) args.Add("--all");
-        else if (id is long v) { args.Add("-i"); args.Add(v.ToString()); }
+        else if (id is long v) { args.Add("--id"); args.Add(v.ToString()); }
         else if (!string.IsNullOrWhiteSpace(ip)) { args.Add("-i"); args.Add(ip); }
         return RunAsync(args, ct);
     }
