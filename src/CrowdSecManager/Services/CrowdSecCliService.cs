@@ -22,15 +22,70 @@ public interface ICrowdSecCliService
     Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default);
     Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit = 100, CancellationToken ct = default);
     Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(CancellationToken ct = default);
-    Task<CliResult> AddDecisionAsync(string ip, string duration = "4h", string? reason = null, string type = "ban", CancellationToken ct = default);
+    Task<CliResult> AddDecisionAsync(string ip, string duration = "4h", string? reason = null, string type = "ban", bool bypassAllowlist = false, CancellationToken ct = default);
     Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null, bool all = false, CancellationToken ct = default);
     Task<IReadOnlyList<CsBouncer>> ListBouncersAsync(CancellationToken ct = default);
-    Task<CliResult> AddBouncerAsync(string name, CancellationToken ct = default);
+    Task<CliResult> AddBouncerAsync(string name, string? apiKey = null, CancellationToken ct = default);
     Task<CliResult> DeleteBouncerAsync(string name, CancellationToken ct = default);
     Task<IReadOnlyList<CsMachine>> ListMachinesAsync(CancellationToken ct = default);
     Task<IReadOnlyList<CsMetric>> GetMetricsAsync(CancellationToken ct = default);
     Task<CliResult> ReloadServiceAsync(CancellationToken ct = default);
     Task<CliResult> ValidateEngineConfigAsync(CancellationToken ct = default);
+
+    // ---- Simulation ----
+    Task<IReadOnlyList<CsSimulation>> ListSimulationsAsync(CancellationToken ct = default);
+    Task<CsSimulationStatus> GetSimulationStatusAsync(CancellationToken ct = default);
+    Task<CliResult> EnableSimulationAsync(CancellationToken ct = default);
+    Task<CliResult> DisableSimulationAsync(CancellationToken ct = default);
+    Task<CliResult> AddSimulationAsync(string scenario, CancellationToken ct = default);
+    Task<CliResult> RemoveSimulationAsync(string scenario, CancellationToken ct = default);
+
+    // ---- Notifications ----
+    Task<IReadOnlyList<CsNotification>> ListNotificationsAsync(CancellationToken ct = default);
+    Task<CliResult> InspectNotificationAsync(string name, CancellationToken ct = default);
+
+    // ---- Console (Central API) ----
+    Task<CliResult> ConsoleStatusAsync(CancellationToken ct = default);
+    Task<CliResult> ConsoleEnableAlertsAsync(CancellationToken ct = default);
+    Task<CliResult> ConsoleDisableAlertsAsync(CancellationToken ct = default);
+
+    // ---- Allowlists ----
+    Task<CliResult> ListAllowlistsAsync(CancellationToken ct = default);
+
+    // ---- Machines (extended) ----
+    Task<CliResult> RegisterMachineAsync(string? machineName = null, bool autoValidate = false, CancellationToken ct = default);
+    Task<CliResult> DeleteMachineAsync(string machineName, CancellationToken ct = default);
+    Task<CliResult> PruneMachinesAsync(CancellationToken ct = default);
+
+    // ---- Bouncers (extended) ----
+    Task<CliResult> InspectBouncerAsync(string name, CancellationToken ct = default);
+    Task<CliResult> PruneBouncersAsync(CancellationToken ct = default);
+
+    // ---- Hub extras ----
+    Task<CliResult> HubSearchAsync(string query, CancellationToken ct = default);
+    Task<CliResult> HubBranchAsync(CancellationToken ct = default);
+    Task<CliResult> HubTypesAsync(CancellationToken ct = default);
+
+    // ---- Config (cscli config) ----
+    Task<CliResult> ConfigShowAsync(CancellationToken ct = default);
+    Task<CliResult> ConfigShowYamlAsync(CancellationToken ct = default);
+    Task<CliResult> ConfigBackupAsync(string targetFile, CancellationToken ct = default);
+    Task<CliResult> ConfigRestoreAsync(string sourceFile, CancellationToken ct = default);
+    Task<CliResult> ConfigFeatureFlagsAsync(CancellationToken ct = default);
+
+    // ---- LAPI (cscli lapi) ----
+    Task<CliResult> LapiStatusAsync(CancellationToken ct = default);
+    Task<CliResult> LapiRegisterAsync(string? machineName, string? url, string? token, CancellationToken ct = default);
+    Task<CliResult> LapiContextListAsync(CancellationToken ct = default);
+    Task<CliResult> LapiContextShowAsync(string name, CancellationToken ct = default);
+
+    // ---- Explain (cscli explain) - test the log pipeline ----
+    Task<CliResult> ExplainLogLineAsync(string logLine, string type, string? labels = null, CancellationToken ct = default);
+    Task<CliResult> ExplainLogFileAsync(string filePath, string type, bool verbose = false, CancellationToken ct = default);
+
+    // ---- Alerts/Decisions with filters ----
+    Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit, string? ip, string? scenario, string? since, string? until, string? type, CancellationToken ct = default);
+    Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(string? ip, string? scenario, string? since, string? until, string? type, CancellationToken ct = default);
 }
 
 public interface ICrowdSecProcessRunner
@@ -204,7 +259,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     }
 
     public Task<CliResult> AddDecisionAsync(string ip, string duration = "4h",
-        string? reason = null, string type = "ban", CancellationToken ct = default)
+        string? reason = null, string type = "ban", bool bypassAllowlist = false, CancellationToken ct = default)
     {
         if (!CrowdSecCommandBuilder.IsValidDecisionTarget(ip))
             return Task.FromResult(new CliResult
@@ -213,7 +268,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
                 Stderr = "Decision target must be a valid IPv4/IPv6 address or CIDR range."
             });
 
-        return RunAsync(CrowdSecCommandBuilder.AddDecision(ip.Trim(), duration, reason, type), ct);
+        return RunAsync(CrowdSecCommandBuilder.AddDecision(ip.Trim(), duration, reason, type, bypassAllowlist), ct);
     }
 
     public Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null,
@@ -228,8 +283,8 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         return b ?? new List<CsBouncer>();
     }
 
-    public Task<CliResult> AddBouncerAsync(string name, CancellationToken ct = default)
-        => RunAsync(new[] { "bouncers", "add", name }, ct);
+    public Task<CliResult> AddBouncerAsync(string name, string? apiKey = null, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.BouncersAdd(name, apiKey), ct);
 
     public Task<CliResult> DeleteBouncerAsync(string name, CancellationToken ct = default)
         => RunAsync(new[] { "bouncers", "delete", name }, ct);
@@ -244,6 +299,159 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     {
         var m = await RunJsonAsync<List<CsMetric>>(new[] { "metrics" }, ct);
         return m ?? new List<CsMetric>();
+    }
+
+    // ---- Simulation ----
+
+    public async Task<IReadOnlyList<CsSimulation>> ListSimulationsAsync(CancellationToken ct = default)
+    {
+        var list = await RunJsonAsync<List<CsSimulation>>(CrowdSecCommandBuilder.SimulationList(), ct);
+        return list ?? new List<CsSimulation>();
+    }
+
+    public async Task<CsSimulationStatus> GetSimulationStatusAsync(CancellationToken ct = default)
+    {
+        // cscli simulation status has no JSON output; we parse the human form.
+        var r = await RunAsync(CrowdSecCommandBuilder.SimulationStatus(), ct);
+        var status = new CsSimulationStatus { RawOutput = r.Stdout };
+        if (!r.Success) return status;
+        // Match common CrowdSec wording: "Global simulation: enabled" or "...: disabled"
+        var match = System.Text.RegularExpressions.Regex.Match(
+            r.Stdout + " " + r.Stderr,
+            @"Global simulation[^:]*:\s*(enabled|disabled|on|off|true|false)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            var v = match.Groups[1].Value.ToLowerInvariant();
+            status.GloballyEnabled = v is "enabled" or "on" or "true";
+        }
+        return status;
+    }
+
+    public Task<CliResult> EnableSimulationAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.SimulationEnable(), ct);
+
+    public Task<CliResult> DisableSimulationAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.SimulationDisable(), ct);
+
+    public Task<CliResult> AddSimulationAsync(string scenario, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.SimulationAdd(scenario), ct);
+
+    public Task<CliResult> RemoveSimulationAsync(string scenario, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.SimulationRemove(scenario), ct);
+
+    // ---- Notifications ----
+
+    public async Task<IReadOnlyList<CsNotification>> ListNotificationsAsync(CancellationToken ct = default)
+    {
+        var list = await RunJsonAsync<List<CsNotification>>(CrowdSecCommandBuilder.NotificationsList(), ct);
+        return list ?? new List<CsNotification>();
+    }
+
+    public Task<CliResult> InspectNotificationAsync(string name, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.NotificationsInspect(name), ct);
+
+    // ---- Console (Central API) ----
+
+    public Task<CliResult> ConsoleStatusAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConsoleStatus(), ct);
+
+    public Task<CliResult> ConsoleEnableAlertsAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConsoleEnable(), ct);
+
+    public Task<CliResult> ConsoleDisableAlertsAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConsoleDisable(), ct);
+
+    // ---- Allowlists ----
+
+    public Task<CliResult> ListAllowlistsAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.AllowlistsList(), ct);
+
+    // ---- Machines (extended) ----
+
+    public Task<CliResult> RegisterMachineAsync(string? machineName = null, bool autoValidate = false, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.MachinesRegister(machineName, autoValidate), ct);
+
+    public Task<CliResult> DeleteMachineAsync(string machineName, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.MachinesDelete(machineName), ct);
+
+    public Task<CliResult> PruneMachinesAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.MachinesPrune(), ct);
+
+    // ---- Bouncers (extended) ----
+
+    public Task<CliResult> InspectBouncerAsync(string name, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.BouncersInspect(name), ct);
+
+    public Task<CliResult> PruneBouncersAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.BouncersPrune(), ct);
+
+    // ---- Hub extras ----
+
+    public Task<CliResult> HubSearchAsync(string query, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.HubSearch(query), ct);
+
+    public Task<CliResult> HubBranchAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.HubBranch(), ct);
+
+    public Task<CliResult> HubTypesAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.HubTypes(), ct);
+
+    // ---- Config (cscli config) ----
+
+    public Task<CliResult> ConfigShowAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConfigShow(), ct);
+
+    public Task<CliResult> ConfigShowYamlAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConfigShowYaml(), ct);
+
+    public Task<CliResult> ConfigBackupAsync(string targetFile, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConfigBackup(targetFile), ct);
+
+    public Task<CliResult> ConfigRestoreAsync(string sourceFile, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConfigRestore(sourceFile), ct);
+
+    public Task<CliResult> ConfigFeatureFlagsAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ConfigFeatureFlags(), ct);
+
+    // ---- LAPI (cscli lapi) ----
+
+    public Task<CliResult> LapiStatusAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.LapiStatus(), ct);
+
+    public Task<CliResult> LapiRegisterAsync(string? machineName, string? url, string? token, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.LapiRegister(machineName, url, token), ct);
+
+    public Task<CliResult> LapiContextListAsync(CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.LapiContextList(), ct);
+
+    public Task<CliResult> LapiContextShowAsync(string name, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.LapiContextShow(name), ct);
+
+    // ---- Explain (cscli explain) - test the log pipeline ----
+
+    public Task<CliResult> ExplainLogLineAsync(string logLine, string type, string? labels = null, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ExplainLogLine(logLine, type, labels), ct);
+
+    public Task<CliResult> ExplainLogFileAsync(string filePath, string type, bool verbose = false, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.ExplainLogFile(filePath, type, verbose), ct);
+
+    // ---- Alerts/Decisions with filters ----
+
+    public async Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit, string? ip, string? scenario,
+        string? since, string? until, string? type, CancellationToken ct = default)
+    {
+        var alerts = await RunJsonAsync<List<CsAlert>>(
+            CrowdSecCommandBuilder.AlertsList(limit, ip, scenario, since, until, type), ct);
+        return alerts ?? new List<CsAlert>();
+    }
+
+    public async Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(string? ip, string? scenario,
+        string? since, string? until, string? type, CancellationToken ct = default)
+    {
+        var decisions = await RunJsonAsync<List<CsDecision>>(
+            CrowdSecCommandBuilder.DecisionsList(ip, scenario, since, until, type), ct);
+        return decisions ?? new List<CsDecision>();
     }
 
     public Task<CliResult> ReloadServiceAsync(CancellationToken ct = default)
@@ -315,6 +523,11 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         "hub", "alerts", "decisions", "bouncers", "machines", "metrics", "config"
     };
 
+    // Commands where only some subcommands support -o json (e.g. simulation list does,
+    // simulation status does not). RunJsonAsync appends -o json explicitly when needed,
+    // so these are intentionally NOT in JsonCommands to avoid breaking non-JSON subcommands.
+    // Affected: simulation, notifications, allowlists, console.
+
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
@@ -384,12 +597,202 @@ public static class CrowdSecCommandBuilder
     public static IReadOnlyList<string> DeleteAlert(long id)
         => new[] { "alerts", "delete", "--id", id.ToString() };
 
+    // ---- Simulation (cscli simulation) ----
+
+    public static IReadOnlyList<string> SimulationList()
+        => new[] { "simulation", "list" };
+
+    public static IReadOnlyList<string> SimulationStatus()
+        => new[] { "simulation", "status" };
+
+    public static IReadOnlyList<string> SimulationEnable()
+        => new[] { "simulation", "enable" };
+
+    public static IReadOnlyList<string> SimulationDisable()
+        => new[] { "simulation", "disable" };
+
+    public static IReadOnlyList<string> SimulationAdd(string scenario)
+        => new[] { "simulation", "add", scenario };
+
+    public static IReadOnlyList<string> SimulationRemove(string scenario)
+        => new[] { "simulation", "remove", scenario };
+
+    // ---- Notifications (cscli notifications) ----
+
+    public static IReadOnlyList<string> NotificationsList()
+        => new[] { "notifications", "list" };
+
+    public static IReadOnlyList<string> NotificationsInspect(string name)
+        => new[] { "notifications", "inspect", name };
+
+    // ---- Console (cscli console) ----
+
+    public static IReadOnlyList<string> ConsoleStatus()
+        => new[] { "console", "status" };
+
+    public static IReadOnlyList<string> ConsoleEnable()
+        => new[] { "console", "enable", "alerts" };
+
+    public static IReadOnlyList<string> ConsoleDisable()
+        => new[] { "console", "disable", "alerts" };
+
+    // ---- Allowlists (cscli allowlists / decisions --bypass-allowlist) ----
+
+    public static IReadOnlyList<string> AllowlistsList()
+        => new[] { "allowlists", "list" };
+
+    // ---- Machines (cscli machines) ----
+
+    public static IReadOnlyList<string> MachinesList()
+        => new[] { "machines", "list" };
+
+    /// <param name="machineName">Optional machine name. When omitted, cscli generates one.</param>
+    /// <param name="autoValidate">If true, add --auto to skip manual validation.</param>
+    public static IReadOnlyList<string> MachinesRegister(string? machineName = null, bool autoValidate = false)
+    {
+        var args = new List<string> { "machines", "register" };
+        if (!string.IsNullOrWhiteSpace(machineName)) { args.Add("--machine"); args.Add(machineName); }
+        if (autoValidate) args.Add("--auto");
+        return args;
+    }
+
+    public static IReadOnlyList<string> MachinesDelete(string machineName)
+        => new[] { "machines", "delete", machineName };
+
+    public static IReadOnlyList<string> MachinesPrune()
+        => new[] { "machines", "prune" };
+
+    // ---- Bouncers (cscli bouncers) ----
+
+    public static IReadOnlyList<string> BouncersInspect(string name)
+        => new[] { "bouncers", "inspect", name };
+
+    public static IReadOnlyList<string> BouncersPrune()
+        => new[] { "bouncers", "prune" };
+
+    /// <summary>Build "cscli bouncers add NAME [--key KEY]".
+    /// The bouncer name is a required positional argument (cscli uses args.ExactArgs(1)).
+    /// When <paramref name="apiKey"/> is null or empty, cscli generates one and prints it
+    /// to stdout. When provided, cscli uses it verbatim.</summary>
+    public static IReadOnlyList<string> BouncersAdd(string name, string? apiKey = null)
+    {
+        var args = new List<string> { "bouncers", "add", name };
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            args.Add("--key");
+            args.Add(apiKey);
+        }
+        return args;
+    }
+
+    // ---- Hub extras ----
+
+    public static IReadOnlyList<string> HubSearch(string query)
+        => new[] { "hub", "search", query };
+
+    public static IReadOnlyList<string> HubBranch()
+        => new[] { "hub", "branch" };
+
+    public static IReadOnlyList<string> HubTypes()
+        => new[] { "hub", "types" };
+
+    // ---- Config (cscli config) ----
+
+    public static IReadOnlyList<string> ConfigShow()
+        => new[] { "config", "show" };
+
+    public static IReadOnlyList<string> ConfigShowYaml()
+        => new[] { "config", "show-yaml" };
+
+    public static IReadOnlyList<string> ConfigBackup(string targetFile)
+        => new[] { "config", "backup", targetFile };
+
+    public static IReadOnlyList<string> ConfigRestore(string sourceFile)
+        => new[] { "config", "restore", sourceFile };
+
+    public static IReadOnlyList<string> ConfigFeatureFlags()
+        => new[] { "config", "feature-flags" };
+
+    // ---- LAPI (cscli lapi) ----
+
+    public static IReadOnlyList<string> LapiStatus()
+        => new[] { "lapi", "status" };
+
+    public static IReadOnlyList<string> LapiRegister(string? machineName, string? url, string? token)
+    {
+        var args = new List<string> { "lapi", "register" };
+        if (!string.IsNullOrWhiteSpace(machineName)) { args.Add("--machine"); args.Add(machineName); }
+        if (!string.IsNullOrWhiteSpace(url)) { args.Add("--url"); args.Add(url); }
+        if (!string.IsNullOrWhiteSpace(token)) { args.Add("--token"); args.Add(token); }
+        return args;
+    }
+
+    public static IReadOnlyList<string> LapiContextList()
+        => new[] { "lapi", "context", "list" };
+
+    public static IReadOnlyList<string> LapiContextShow(string name)
+        => new[] { "lapi", "context", "show", name };
+
+    // ---- Explain (cscli explain) - test the log pipeline ----
+
+    /// <summary>Build the cscli explain command for a single log line.</summary>
+    public static IReadOnlyList<string> ExplainLogLine(string logLine, string type, string? labels = null)
+    {
+        var args = new List<string> { "explain", "--log", logLine, "--type", type };
+        if (!string.IsNullOrWhiteSpace(labels)) { args.Add("--labels"); args.Add(labels); }
+        return args;
+    }
+
+    /// <summary>Build the cscli explain command for a log file.</summary>
+    public static IReadOnlyList<string> ExplainLogFile(string filePath, string type, bool verbose = false)
+    {
+        var args = new List<string> { "explain", "--file", filePath, "--type", type };
+        if (verbose) args.Add("--verbose");
+        return args;
+    }
+
+    // ---- Alerts/Decisions filters (cscli alerts list / decisions list) ----
+
+    /// <summary>Build the cscli alerts list command with optional filters.</summary>
+    public static IReadOnlyList<string> AlertsList(int limit, string? ip = null, string? scenario = null,
+        string? since = null, string? until = null, string? type = null)
+    {
+        var args = new List<string> { "alerts", "list", "-l", limit.ToString() };
+        if (!string.IsNullOrWhiteSpace(ip)) { args.Add("--ip"); args.Add(ip); }
+        if (!string.IsNullOrWhiteSpace(scenario)) { args.Add("--scenario"); args.Add(scenario); }
+        if (!string.IsNullOrWhiteSpace(since)) { args.Add("--since"); args.Add(since); }
+        if (!string.IsNullOrWhiteSpace(until)) { args.Add("--until"); args.Add(until); }
+        if (!string.IsNullOrWhiteSpace(type)) { args.Add("--type"); args.Add(type); }
+        return args;
+    }
+
+    /// <summary>Build the cscli decisions list command with optional filters.</summary>
+    public static IReadOnlyList<string> DecisionsList(string? ip = null, string? scenario = null,
+        string? since = null, string? until = null, string? type = null)
+    {
+        var args = new List<string> { "decisions", "list" };
+        if (!string.IsNullOrWhiteSpace(ip)) { args.Add("--ip"); args.Add(ip); }
+        if (!string.IsNullOrWhiteSpace(scenario)) { args.Add("--scenario"); args.Add(scenario); }
+        if (!string.IsNullOrWhiteSpace(since)) { args.Add("--since"); args.Add(since); }
+        if (!string.IsNullOrWhiteSpace(until)) { args.Add("--until"); args.Add(until); }
+        if (!string.IsNullOrWhiteSpace(type)) { args.Add("--type"); args.Add(type); }
+        return args;
+    }
+
     public static IReadOnlyList<string> AddDecision(string ipOrRange, string duration,
         string? reason, string type)
+        => AddDecision(ipOrRange, duration, reason, type, bypassAllowlist: false);
+
+    public static IReadOnlyList<string> AddDecision(string ipOrRange, string duration,
+        string? reason, string type, bool bypassAllowlist)
     {
         var targetFlag = ipOrRange.Contains('/', StringComparison.Ordinal) ? "--range" : "--ip";
         var args = new List<string> { "decisions", "add", targetFlag, ipOrRange,
             "--duration", duration, "--type", type };
+        if (bypassAllowlist)
+        {
+            args.Add("--bypass-allowlist");
+        }
         if (!string.IsNullOrWhiteSpace(reason))
         {
             args.Add("--reason");

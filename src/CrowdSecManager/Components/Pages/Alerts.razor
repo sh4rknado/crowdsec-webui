@@ -7,18 +7,43 @@
 
 <section class="card">
     <header>
-        <h2>Alerts (@_list.Count)</h2>
+        <h2>Filters</h2>
         <div class="actions">
-            <label class="inline">Limit
-                <input type="number" min="10" max="1000" step="10" @bind="_limit" />
-            </label>
-            <button class="btn ghost" @onclick="Refresh">Refresh</button>
+            <button class="btn primary" @onclick="Refresh">Apply</button>
+            <button class="btn ghost" @onclick="ClearFilters">Clear</button>
         </div>
+    </header>
+    <div class="form-row">
+        <label>Limit
+            <input type="number" min="10" max="1000" step="10" @bind="_limit" />
+        </label>
+        <label>Source IP
+            <input type="text" @bind="_ip" placeholder="1.2.3.4" />
+        </label>
+        <label>Scenario
+            <input type="text" @bind="_scenario" placeholder="crowdsecurity/ssh-bf" />
+        </label>
+        <label>Since
+            <input type="text" @bind="_since" placeholder="4h, 7d" />
+        </label>
+        <label>Until
+            <input type="text" @bind="_until" placeholder="1h" />
+        </label>
+        <label>Type
+            <input type="text" @bind="_type" placeholder="ban, captcha" />
+        </label>
+    </div>
+</section>
+
+<section class="card">
+    <header>
+        <h2>Alerts (@_list.Count)</h2>
+        <button class="btn ghost" @onclick="Refresh">Refresh</button>
     </header>
 
     @if (_list.Count == 0)
     {
-        <p class="muted">No alerts recorded.</p>
+        <p class="muted">No alerts match the current filters.</p>
     }
     else
     {
@@ -52,14 +77,32 @@
 
 @code {
     private int _limit = 100;
+    private string _ip = "";
+    private string _scenario = "";
+    private string _since = "";
+    private string _until = "";
+    private string _type = "";
     private List<CsAlert> _list = new();
 
     protected override async Task OnInitializedAsync() => await Refresh();
 
     private async Task Refresh()
     {
-        try { _list = (await Cli.ListAlertsAsync(Math.Clamp(_limit, 1, 1000))).ToList(); }
+        try
+        {
+            _list = (await Cli.ListAlertsAsync(
+                Math.Clamp(_limit, 1, 1000),
+                NullIfBlank(_ip), NullIfBlank(_scenario),
+                NullIfBlank(_since), NullIfBlank(_until),
+                NullIfBlank(_type))).ToList();
+        }
         catch (Exception ex) { Log.LogDebug("alerts: {Msg}", ex.Message); }
+    }
+
+    private void ClearFilters()
+    {
+        _ip = ""; _scenario = ""; _since = ""; _until = ""; _type = "";
+        _ = Refresh();
     }
 
     private async Task Delete(long id)
@@ -68,6 +111,8 @@
         if (!result.Success) Log.LogWarning("Could not delete alert {Id}: {Error}", id, result.FlattenError());
         await Refresh();
     }
+
+    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private static string? Truncate(string? s, int n)
         => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);

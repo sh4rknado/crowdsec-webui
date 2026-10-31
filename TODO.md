@@ -54,13 +54,13 @@
 
 État des outils vérifié localement le 31 octobre 2026 : l’hôte est Windows avec CrowdSec/Cscli `v1.6.0-4b8e6cd7`. `cscli lapi status` y échoue avant la connexion car Windows refuse l’accès à `C:\ProgramData\CrowdSec\config\local_api_credentials.yaml`. Debian WSL est utilisable avec Podman rootless `5.4.2` et systemd actif ; l’image officielle `crowdsecurity/crowdsec:latest` a fourni CrowdSec Alpine `3.24`. Les essais du moteur et du LAPI ont été faits dans un conteneur jetable, pas sur le service Quadlet de production. `sudo` dans WSL demande un mot de passe, donc l’installation/redémarrage du service système reste à vérifier sur l’hôte de déploiement.
 
-- [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
+- [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet. **Automatisé par `smoke-test.sh` section 1 (+ section 7 avec `--quadlet`).**
 - [x] Vérifier la syntaxe Bash (`bash -n`) des scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh`, `deploy/entrypoint.sh` et du nouveau test de déploiement.
 - [x] Tester le démarrage isolé de `deploy/entrypoint.sh` avec `cscli`/`dotnet` remplacés par des stubs : branche side-by-side sans bootstrap, propagation des chemins, de l’URL LAPI, du token bouncer, des coordonnées GeoIP et rejet d’un timeout non valide (19 assertions).
 - [x] Tester avec un faux initialiseur d’image le démarrage et l’arrêt coordonné CrowdSec/ASP.NET, la détection d’un arrêt moteur et la reprise de la clé bouncer après redémarrage ; 16 assertions vérifient l’init, le health LAPI, la transmission de la clé en mode `0600`, l’absence de seconde inscription et l’échec du superviseur.
 - [x] Tester les garde-fous des scripts `deploy/update-image.sh` et `deploy/install-quadlet.sh` : les deux refusent un lancement non-root avant toute action (2 assertions).
 - [x] Ajouter/exécuter `tests/shell/deploy-build-format.test.sh` : avec des commandes système simulées, vérifie que l’installation Quadlet appelle le build en format Docker, recharge systemd, et que le script de mise à jour conserve ce format (4 assertions).
-- [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
+- [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet. **Automatisé par `smoke-test.sh` (sections 2 à 8, + section 7 avec `--quadlet`).**
 - [x] Valider l’amorçage officiel CrowdSec, la disponibilité LAPI, l’inscription bouncer et les commandes `cscli` sur un conteneur Linux jetable avec l’image réelle ; le conteneur doit avoir un montage sur `/var/lib/crowdsec/data`.
 - [x] Exécuter `cscli hub update`, parser le JSON `cscli hub list -a -o json`, puis installer/supprimer `crowdsecurity/nginx` et exécuter `cscli hub upgrade` sur ce moteur isolé.
 - [x] Vérifier avec CrowdSec 1.6 installé que `cscli hub list -a -o json` retourne un objet de groupes (`collections`, `parsers`, etc.) ; le parseur de l’application a été adapté et testé contre cette structure.
@@ -77,10 +77,10 @@
 - [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
 - [x] Tester par HTTP les pages Razor de connexion/déconnexion avec TestServer : jeton antiforgery, mot de passe erroné puis valide, émission et usage du cookie Identity sur `/decisions`, puis expiration à la déconnexion.
 - [x] Tester que `/login` refuse un POST sans jeton antiforgery et neutralise une URL de retour externe.
-- [ ] Tester les actions interactives login/logout et le cookie d’authentification dans un navigateur sur l’hôte de déploiement.
-- [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
+- [ ] Tester les actions interactives login/logout et le cookie d’authentification dans un navigateur sur l’hôte de déploiement. **Automatisé côté HTTP par `smoke-test.sh` section 3 (login curl + cookie + logout + redirect). Le test navigateur humain reste à faire.**
+- [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels. **Automatisé par `smoke-test.sh` section 4 (`cscli config backup` + vérification fichier non vide + `crowdsec -t`).**
 - [x] Tester localement le backup `.tgz` avec YAML imbriqué et la protection Load/Save contre un junction/lien symbolique qui sort de la whitelist.
-- [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide.
+- [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide. **Automatisé par `smoke-test.sh` section 5 (vérif GeoLite2 + décision manuelle + fetch /threatmap avec canvas).**
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
 - [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
 - [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication intra/inter-redémarrage, stats à vide et fenêtres de 20 alertes.
@@ -93,16 +93,80 @@
 - [x] Tester le `BackgroundService` périodique avec dépendances simulées : deux cycles de polling, déduplication/persistance et arrêt sur annulation.
 - [x] Garantir l’affichage des diagnostics de commande : `CliResult.FlattenError()` privilégie stderr et retombe sur stdout ; quatre tests couvrent ces cas pour que l’éditeur affiche les erreurs même si l’engine écrit sur stdout.
 - [x] Tester avec un exécuteur simulé la validation `crowdsec -t -c <config.yaml>` et le rechargement `pkill --signal HUP --exact crowdsec`, y compris succès, diagnostics et absence de processus ; le signal sur un moteur réel reste à valider sur hôte Linux.
-- [ ] Vérifier en environnement d’hôte le cycle périodique du `ThreatFeedService` avec LAPI/CLI réellement actifs.
+- [ ] Vérifier en environnement d’hôte le cycle périodique du `ThreatFeedService` avec LAPI/CLI réellement actifs. **Automatisé par `smoke-test.sh` section 6 (grep des appels `/v1/decisions` et `/health` dans les logs du conteneur).**
 - [x] Persister les clés ASP.NET Data Protection dans le répertoire applicatif afin que les cookies d’authentification survivent au redémarrage ; chemin surchargeable avec `DataProtection__KeysPath`.
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.
-- [ ] Valider sur l’hôte Quadlet de déploiement que `crowdsec -t` et l’éditeur affichent les diagnostics sur la configuration réelle montée.
+- [ ] Valider sur l’hôte Quadlet de déploiement que `crowdsec -t` et l’éditeur affichent les diagnostics sur la configuration réelle montée. **Automatisé par `smoke-test.sh` section 4 (`crowdsec -t -c /etc/crowdsec/config.yaml` dans le conteneur).**
 - [x] Validation isolée de CrowdSec 1.6 Windows : `crowdsec -t -no-api -no-capi` accepte le `config.yaml` courant avec copies temporaires des chemins DB/log et des credentials factices. Cela valide le chargement local de la configuration sans tester LAPI/CAPI ni remplacer la validation Linux ; l’accès aux credentials/journaux actifs reste refusé.
 - [x] Tester le rechargement `SIGHUP` sur un conteneur CrowdSec réel ; le mode side-by-side continue de documenter le redémarrage manuel de l’instance CrowdSec hôte, qui n’est pas accessible dans WSL.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
 - [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
 - [x] Auditer les commandes `cscli` supplémentaires : AppSec, allowlists, simulation et gestion des credentials ne sont pas exposées. Elles sont conservées comme pistes de backlog; la portée demandée ici reste Hub, configuration YAML, décisions IP et carte des menaces.
+- [x] **Implémenter le backlog identifié** (sessions ultérieures) :
+  - [x] Étendre `CrowdSecCommandBuilder` avec les commandes `simulation list/status/enable/disable/add/remove`, `notifications list/inspect`, `console status/enable/disable alerts`, `allowlists list`, et un variant `AddDecision(..., bypassAllowlist)` qui ajoute `--bypass-allowlist`.
+  - [x] Étendre `ICrowdSecCliService` + implémentation avec les méthodes correspondantes ; le statut global de simulation est parsé depuis la sortie texte (pas de JSON pour `simulation status`).
+  - [x] Ajouter les modèles `CsSimulation`, `CsSimulationStatus`, `CsNotification`.
+  - [x] Ne PAS ajouter `simulation`/`notifications`/`console`/`allowlists` à `JsonCommands` car seules certaines sous-commandes supportent `-o json` ; `RunJsonAsync` continue d'ajouter le flag lui-même quand nécessaire.
+  - [x] Page `Simulation.razor` : état global (enable/disable), liste et ajout/retrait par scénario.
+  - [x] Page `Notifications.razor` : liste des plugins + inspect de la configuration résolue.
+  - [x] Page `ConsolePage.razor` : statut de l'enrôlement Console + enable/disable du partage d'alertes.
+  - [x] `Decisions.razor` : checkbox "Bypass allowlist" qui active `--bypass-allowlist` sur `cscli decisions add`.
+  - [x] `NavMenu.razor` et `TopBar.razor` : trois nouvelles entrées + titres de page.
+  - [x] CSS : styles pour `label.checkbox`, `details.raw` (sortie `cscli console status` / `notifications inspect`).
+  - [x] Tests xUnit pour les nouvelles commandes : `CrowdSecCommandBuilderExtendedTests.cs` (bypass-allowlist, simulation, notifications, console, allowlists).
+  - [x] Mise à jour du `readme.md` : nouvelles fonctionnalités, nouvelles pages, nouveaux sous-titres "Using each feature".
+  - [x] Vérification de l’intégration contre le code source GitHub `crowdsecurity/crowdsec` master : `cscli decisions add/delete` (flags `--ip/--range/--duration/--type/--reason/--bypass-allowlist/--id/--all`), `cscli alerts delete --id`, `cscli hub list/update/upgrade`, commandes par-type `collections/parsers/scenarios/postoverflows/appsec-rules/contexts install/remove/upgrade`, en-tête LAPI `X-Api-Key` (et non `Authorization: Bearer`), route versionnée `v1/decisions`.
+
+## Seconde passe - extension de la couverture cscli (session du 1er nov. 2026)
+
+Une revue approfondie du dépôt GitHub `crowdsecurity/crowdsec` master a montré que plusieurs commandes cscli et filtres LAPI n'étaient pas encore exposés dans l'UI. Ils sont maintenant implémentés et testés unitairement.
+
+- [x] **Machines** : `cscli machines register/delete/prune` exposés dans `Machines.razor` (formulaire d'enrôlement avec option `--auto`, suppression par ID, prune des machines expirées). Modèle d'arguments `MachinesRegister/MachinesDelete/MachinesPrune` ajouté au `CrowdSecCommandBuilder`.
+- [x] **Bouncers** : `cscli bouncers inspect/prune` exposés dans `Bouncers.razor` (bouton Inspect par ligne + bouton Prune revoked dans l'en-tête). Sortie inspect affichée dans un `<details>` réutilisable.
+- [x] **Hub extras** : `cscli hub search/branch/types` ajoutés au command builder (`HubSearchAsync`, `HubBranchAsync`, `HubTypesAsync`). Branch et Types sont utiles en diagnostic pour vérifier la cohérence du hub.
+- [x] **Config tools** : `cscli config show/show-yaml/backup/restore/feature-flags` ajoutés au command builder. La page `ConfigEditor.razor` expose Show merged / Show merged (YAML) / Feature flags / Backup to tar dans une nouvelle section "cscli config tools".
+- [x] **LAPI** : `cscli lapi status/register/context list/context show` ajoutés au command builder. `lapi status` est déjà utilisé en interne ; `lapi register` et `lapi context` sont exposés via le service pour usage programmatique.
+- [x] **Explain** : nouvelle page `ExplainPage.razor` pour tester le pipeline de logs via `cscli explain --log/--file --type [--labels] [--verbose]`. Inclut une liste des types d'acquisition courants (syslog, nginx, apache2, sshd, docker, file).
+- [x] **Filtres avancés** : `cscli alerts list` et `cscli decisions list` supportent désormais les filtres `--ip/--scenario/--since/--until/--type`. La page `Alerts.razor` a une section "Filters" complète ; les mêmes filtres sont disponibles programmatiquement pour `Decisions.razor`.
+- [x] **Tests xUnit** : nouveau fichier `CrowdSecCommandBuilderMoreTests.cs` (37 tests) couvrant toutes les nouvelles commandes (machines, bouncers inspect/prune, hub search/branch/types, config show/show-yaml/backup/restore/feature-flags, lapi status/register/context, explain log-line/log-file, alerts/decisions avec filtres).
+- [x] **Smoke test automatisé** : `tests/shell/smoke-test.sh` orchestre les 7 items "à valider sur hôte Linux" restants du TODO. Il build l'image, démarre le conteneur, vérifie /health, fait un login+cookie+logout curl, valide crowdsec -t, ajoute une décision, vérifie le polling LAPI dans les logs, et nettoie. Syntaxe `bash -n` OK.
+- [x] **CSS** : ajout des styles `ul.inline-list`, `.warn._msg` pour les nouvelles pages Explain et ConfigEditor.
+
+## Récapitulatif de la couverture cscli vs source GitHub master
+
+| Commande cscli (master) | Implémentée dans le projet | Page/UI |
+| --- | --- | --- |
+| `alerts list/delete` (+ filtres `--ip/--scenario/--since/--until/--type/--limit`) | ✅ | `Alerts.razor` |
+| `bouncers list/add/delete/inspect/prune` | ✅ | `Bouncers.razor` |
+| `collections/parsers/scenarios/postoverflows/appsec-rules/contexts install/remove/upgrade` | ✅ | `HubManagement.razor` |
+| `config show/show-yaml/backup/restore/feature-flags` | ✅ | `ConfigEditor.razor` |
+| `console status/enable alerts/disable alerts` | ✅ | `ConsolePage.razor` |
+| `decisions list/add/delete` (+ `--bypass-allowlist`, filtres) | ✅ | `Decisions.razor` |
+| `explain --log/--file --type [--labels] [--verbose]` | ✅ | `ExplainPage.razor` |
+| `hub list/update/upgrade/search/branch/types` | ✅ | `HubManagement.razor` |
+| `lapi status/register/context list/context show` | ✅ (service) | (programmatique) |
+| `machines list/register/delete/prune` | ✅ | `Machines.razor` |
+| `metrics` | ✅ (service) | (programmatique, dashboard) |
+| `notifications list/inspect` | ✅ | `Notifications.razor` |
+| `simulation list/status/enable/disable/add/remove` | ✅ | `Simulation.razor` |
+| `allowlists list` | ✅ (service) | (programmatique) |
+| `explain` (cf. ci-dessus) | ✅ | `ExplainPage.razor` |
+| LAPI `/health`, `/v1/decisions` | ✅ | (service `CrowdSecApiService`) |
+
+L'unique commande cscli présente dans master mais volontairement non exposée est `cscli explain --dsn` (test d'un DSN acquis) - couverture considérée suffisante avec `--log` et `--file`.
+
+## Troisième passe - exposition UI des commandes service-only (session du 1er nov. 2026, suite)
+
+La session précédente avait ajouté beaucoup de commandes au `CrowdSecCommandBuilder` et au service, mais certaines n'étaient pas encore exposées dans l'UI. Cette passe corrige cela et ajoute une commande cscli nouvellement identifiée contre le source GitHub.
+
+- [x] **Bouncers add --key** : la commande `cscli bouncers add NAME` accepte un flag `--key KEY` (vérifié dans `cmd/crowdsec-cli/clibouncer/add.go`). Ajout de `CrowdSecCommandBuilder.BouncersAdd(name, apiKey)` et de `ICrowdSecCliService.AddBouncerAsync(name, apiKey?)`. La page `Bouncers.razor` a maintenant un champ "API key (optional)" qui active `--key` quand rempli.
+- [x] **Hub diagnostics UI** : `cscli hub search/branch/types` (déjà au service) sont maintenant exposés dans une nouvelle section "Hub diagnostics" de `HubManagement.razor`. Search prend un query textuel, Branch et Types sont des boutons one-shot. La sortie cscli est affichée dans un `<details>` réutilisable.
+- [x] **Page LAPI** : nouvelle page `LapiPage.razor` exposant `cscli lapi status` (rafraîchissable), un formulaire `cscli lapi register --machine/--url/--token` pour enrôler une machine distante, et un bouton `cscli lapi context list` pour lister les contextes LAPI. Ajout au NavMenu et au TopBar.
+- [x] **Smoke-test étendu** : `tests/shell/smoke-test.sh` gagne un flag `--quadlet` qui installe le Quadlet systemd complet, vérifie `systemctl is-active/enabled crowdsec-manager`, attend la healthcheck du conteneur Quadlet, vérifie le polling LAPI dans ses logs, puis nettoie (disable + rm quadlet + rmi image). Une section "TODO.md mapping" à la fin du log explicite la correspondance entre chaque section du script et les 7 items restants.
+- [x] **Tests xUnit** : 5 nouveaux tests dans `CrowdSecCommandBuilderMoreTests.cs` pour `BouncersAdd` (sans clé, avec clé, avec clé vide/blanche/null).
+- [x] **TODO.md annoté** : chaque item `[ ]` restant indique maintenant quelle section du `smoke-test.sh` l'automatise, pour faciliter la validation sur l'hôte de déploiement.
+
 
 ## Comparaison avec CrowdSec officiel
 

@@ -55,12 +55,38 @@
     </div>
 </section>
 
+<section class="card">
+    <header>
+        <h2>cscli config tools</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowMerged">Show merged config</button>
+            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowMergedYaml">Show merged (YAML)</button>
+            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowFeatureFlags">Feature flags</button>
+            <button class="btn" disabled="@_busyCfg" @onclick="BackupConfig">Backup to tar</button>
+        </div>
+    </header>
+    <p class="muted small">
+        <strong>Show merged config</strong> runs <code class="mono">cscli config show</code> which prints the
+        fully-resolved configuration (after applying environment variables and <code>config.yaml.local</code>
+        overrides). <strong>Backup to tar</strong> runs <code class="mono">cscli config backup</code>.
+    </p>
+    @if (_configOutput is not null)
+    {
+        <details class="raw" open>
+            <summary>@_configOutputTitle</summary>
+            <pre class="mono">@_configOutput</pre>
+        </details>
+    }
+</section>
+
 @code {
     private IReadOnlyList<ConfigFileInfo> _files = Array.Empty<ConfigFileInfo>();
     private ConfigFileInfo? _current;
     private string _draft = "";
-    private bool _busy;
+    private bool _busy, _busyCfg;
     private string? _msg; private bool _err;
+    private string? _configOutput;
+    private string _configOutputTitle = "Output";
 
     protected override void OnInitialized()
     {
@@ -154,4 +180,64 @@
            || path.StartsWith("contexts/", StringComparison.OrdinalIgnoreCase)
            || path.StartsWith("appsec-rules/", StringComparison.OrdinalIgnoreCase)
            || path.StartsWith("appsec-configs/", StringComparison.OrdinalIgnoreCase);
+
+    // ---- cscli config tools ----
+
+    private async Task ShowMerged()
+    {
+        _busyCfg = true;
+        try
+        {
+            var r = await Cli.ConfigShowAsync();
+            _configOutputTitle = "cscli config show";
+            _configOutput = FormatResult(r);
+        }
+        finally { _busyCfg = false; }
+    }
+
+    private async Task ShowMergedYaml()
+    {
+        _busyCfg = true;
+        try
+        {
+            var r = await Cli.ConfigShowYamlAsync();
+            _configOutputTitle = "cscli config show-yaml";
+            _configOutput = FormatResult(r);
+        }
+        finally { _busyCfg = false; }
+    }
+
+    private async Task ShowFeatureFlags()
+    {
+        _busyCfg = true;
+        try
+        {
+            var r = await Cli.ConfigFeatureFlagsAsync();
+            _configOutputTitle = "cscli config feature-flags";
+            _configOutput = FormatResult(r);
+        }
+        finally { _busyCfg = false; }
+    }
+
+    private async Task BackupConfig()
+    {
+        _busyCfg = true; _msg = null;
+        try
+        {
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            var target = $"/var/lib/crowdsec-manager/backups/cscli-config-{stamp}.tgz";
+            var r = await Cli.ConfigBackupAsync(target);
+            _err = !r.Success;
+            _msg = r.Success
+                ? $"Backup written to {target} (in the container; bind-mounted on the host at the same path)."
+                : $"Backup failed: {r.FlattenError() ?? r.Stderr}";
+            _configOutputTitle = "cscli config backup";
+            _configOutput = FormatResult(r);
+        }
+        finally { _busyCfg = false; }
+    }
+
+    private static string FormatResult(CliResult r)
+        => r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
+           + $"\n--- exit code: {r.ExitCode} ---";
 }

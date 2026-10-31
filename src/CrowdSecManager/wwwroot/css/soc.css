@@ -887,3 +887,109 @@ code.mono {
     display: inline-block;
     word-break: break-all;
 }
+
+/* ============= Checkbox label ============= */
+label.checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex-direction: column;
+    padding: 8px 0;
+}
+
+label.checkbox input[type=checkbox] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    margin: 0;
+    min-width: 0;
+}
+
+label.checkbox > span {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+label.checkbox > small {
+    font-size: 11px;
+    color: var(--text-mut);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ============= Raw output <details> ============= */
+details.raw {
+    margin: 12px 18px;
+    padding: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+details.raw > summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    background: var(--bg-card-2);
+    color: var(--text-mut);
+    font-size: 12px;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+}
+
+details.raw > summary:hover { color: var(--text); }
+
+details.raw[open] > summary { border-bottom: 1px solid var(--border); }
+
+details.raw pre.mono {
+    margin: 0;
+    padding: 12px;
+    background: #060a16;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+/* ============= Inline list (explanation cards) ============= */
+ul.inline-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+ul.inline-list li {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--text-mut);
+}
+
+ul.inline-list li code {
+    color: var(--accent);
+    background: transparent;
+    padding: 0;
+}
+
+/* ============= Warn block ============= */
+.warn._msg {
+    margin: 12px 18px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--warn);
+}

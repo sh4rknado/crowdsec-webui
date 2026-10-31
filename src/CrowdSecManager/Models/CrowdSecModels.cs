@@ -104,3 +104,30 @@ public sealed class CsMetric
     public long? Min { get; set; }
     public double? Avg { get; set; }
 }
+
+/// <summary>Scenario entry returned by <c>cscli simulation list -o json</c>.</summary>
+public sealed class CsSimulation
+{
+    public string? Scenario { get; set; }
+    public bool Simulated { get; set; }
+    public string? Mode { get; set; }
+}
+
+/// <summary>Aggregated simulation status returned by <c>cscli simulation status</c>
+/// (parsed from the human-form output - there is no JSON form for status).</summary>
+public sealed class CsSimulationStatus
+{
+    public bool GloballyEnabled { get; set; }
+    public string? RawOutput { get; set; }
+}
+
+/// <summary>Notification plugin returned by <c>cscli notifications list -o json</c>.</summary>
+public sealed class CsNotification
+{
+    public string? Name { get; set; }
+    public string? Type { get; set; }
+    public string? Format { get; set; }
+    public string? ConfigPath { get; set; }
+    public string? Description { get; set; }
+    public bool Enabled { get; set; }
+}

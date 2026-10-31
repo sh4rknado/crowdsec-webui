@@ -11,8 +11,15 @@
         <label>Name
             <input type="text" @bind="_newName" placeholder="nginx-bouncer" />
         </label>
-        <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Generate API key</button>
+        <label>API key (optional)
+            <input type="text" @bind="_newKey" placeholder="leave empty to auto-generate" />
+        </label>
+        <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Register bouncer</button>
     </div>
+    <p class="muted small">
+        Leave the API key empty to let cscli generate one (it will be shown once below).
+        Provide a key with <code class="mono">--key</code> to use a pre-shared secret.
+    </p>
     @if (_apiKey is not null)
     {
         <div class="ok _msg">
@@ -26,8 +33,19 @@
 <section class="card">
     <header>
         <h2>Registered bouncers (@_list.Count)</h2>
-        <button class="btn ghost" @onclick="Refresh">Refresh</button>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+            <button class="btn" disabled="@_busy" @onclick="Prune">Prune revoked</button>
+        </div>
     </header>
+    @if (_inspectOutput is not null)
+    {
+        <details class="raw" open>
+            <summary>Inspect output for @(_inspectName ?? "")</summary>
+            <pre class="mono">@_inspectOutput</pre>
+        </details>
+    }
+
     @if (_list.Count == 0)
     {
         <p class="muted">No bouncers registered.</p>
@@ -50,7 +68,10 @@
                             @if (b.Revoked) { <span class="badge err">revoked</span> }
                             else { <span class="badge ok">active</span> }
                         </td>
-                        <td><button class="btn mini danger" @onclick="async () => await Delete(b.Name!)">Revoke</button></td>
+                        <td>
+                            <button class="btn mini" @onclick="async () => await Inspect(b.Name!)">Inspect</button>
+                            <button class="btn mini danger" @onclick="async () => await Delete(b.Name!)">Revoke</button>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -60,10 +81,13 @@
 
 @code {
     private string _newName = "";
+    private string _newKey = "";
     private List<CsBouncer> _list = new();
-    private bool _busyAdd;
+    private bool _busy, _busyAdd;
     private string? _msg; private bool _err;
     private string? _apiKey;
+    private string? _inspectOutput;
+    private string? _inspectName;
 
     protected override async Task OnInitializedAsync() => await Refresh();
 
@@ -81,14 +105,15 @@
             if (string.IsNullOrWhiteSpace(_newName))
             { _err = true; _msg = "Name is required."; return; }
 
-            var r = await Cli.AddBouncerAsync(_newName);
+            var r = await Cli.AddBouncerAsync(_newName, NullIfBlank(_newKey));
             _err = !r.Success;
             if (r.Success)
             {
-                // cscli bouncers add prints the api key to stdout
-                _apiKey = ExtractApiKey(r.Stdout);
+                // cscli bouncers add prints the api key to stdout when --key is not used.
+                // When --key was provided, cscli just confirms registration.
+                _apiKey = string.IsNullOrWhiteSpace(_newKey) ? ExtractApiKey(r.Stdout) : _newKey;
                 _msg = _apiKey is null ? "Bouncer registered." : null;
-                _newName = "";
+                _newName = ""; _newKey = "";
                 await Refresh();
             }
             else _msg = $"Failed: {r.FlattenError() ?? r.Stderr}";
@@ -96,12 +121,41 @@
         finally { _busyAdd = false; }
     }
 
+    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
     private async Task Delete(string name)
     {
         var r = await Cli.DeleteBouncerAsync(name);
         _err = !r.Success;
         _msg = r.Success ? $"Revoked {name}." : $"Failed: {r.FlattenError()}";
         await Refresh();
+    }
+
+    private async Task Inspect(string name)
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.InspectBouncerAsync(name);
+            _inspectName = name;
+            _inspectOutput = r.Success
+                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
+                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Prune()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.PruneBouncersAsync();
+            _err = !r.Success;
+            _msg = r.Success ? "Pruned revoked bouncers." : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
     }
 
     private static string? ExtractApiKey(string stdout)

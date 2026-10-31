@@ -18,12 +18,17 @@ a single `systemctl start`.
 | --- | --- |
 | **Dashboard** | Live counts of decisions / alerts / 24h alerts / GeoIP status, quick actions for `cscli hub update` / `hub upgrade` / config backup, recent blocked IPs table. |
 | **Real-time threat map** | Canvas-based dark SOC world map. Each new CrowdSec alert is geolocated with MaxMind GeoLite2 and drawn as an animated arc from the attacker IP to your protected host. Severity-colored, with ripples on impact, source pulsing dots, top source countries bar list, and a live recent-attacks feed. |
-| **Decisions** | Add a manual IP ban (`ban` / `captcha` / `throttle`), with custom duration and reason. List, delete, or wipe all active decisions. |
+| **Decisions** | Add a manual IP ban (`ban` / `captcha` / `throttle`), with custom duration, reason and an optional **bypass-allowlist** flag (forces the ban even if the IP is in a CrowdSec allowlist). List, delete, or wipe all active decisions. |
 | **Alerts** | Browse the last N alerts with scenario, source, event count, decision count and message. Delete individual alerts. |
-| **Hub & Collections** | Run `cscli hub update` / `hub upgrade`, install/remove individual collections, parsers, scenarios or postoverflows. Filter by name/type. See local vs latest version and taint state. |
-| **Bouncers** | Register new bouncers (returns the one-shot API key), list active bouncers with last-pull / pulls / status, revoke. |
-| **Machines** | List CrowdSec machines registered against this Local API with version, last push, validated state. |
-| **Configuration editor** | Whitelisted YAML config files (`config.yaml`, `profiles.yaml`, `acquis.yaml`, `console.yaml`, `simulation.yaml`, `local_api_credentials.yaml`, `online_api_credentials.yaml`, `notifications/*.yaml`) edited in a textarea with live YAML validation on save and on-demand tar backup of the whole `/etc/crowdsec` directory. |
+| **Hub & Collections** | Run `cscli hub update` / `hub upgrade`, install/remove individual collections, parsers, scenarios, postoverflows, AppSec rules and contexts. Filter by name/type. See local vs latest version and taint state. |
+| **Explain** | Test the log pipeline against a single log line or a log file with `cscli explain --log/--file --type`. Useful to validate that a parser chain works before deploying it. |
+| **Bouncers** | Register new bouncers (returns the one-shot API key, or use a pre-shared key with `--key`), list active bouncers with last-pull / pulls / status, inspect a bouncer's resolved configuration, revoke, and prune revoked bouncers in bulk. |
+| **Machines** | List CrowdSec machines registered against this Local API with version, last push, validated state. Register new machines (`--auto` optional), delete by ID, prune expired machines. |
+| **LAPI** | Show Local API status (`cscli lapi status`), register a machine against a remote LAPI (`cscli lapi register --machine/--url/--token`), and list LAPI contexts (`cscli lapi context list`). |
+| **Simulation** | Toggle global simulation mode (`cscli simulation enable/disable`) and manage per-scenario simulation entries (`add`/`remove`/`list`). Useful to dry-run new scenarios without enforcing bans. |
+| **Notifications** | List configured notification plugins (`cscli notifications list`) and inspect their resolved configuration. Notification YAML files are edited from the Configuration page. |
+| **Console** | Show CrowdSec Central API registration status (`cscli console status`) and toggle alert sharing (`console enable/disable alerts`). |
+| **Configuration editor** | Whitelisted YAML config files edited in a textarea with live YAML validation, on-demand tar backup of the whole `/etc/crowdsec` directory, and `cscli config` tools: show merged config, show merged (YAML), feature flags, backup. |
 | **Authentication** | ASP.NET Identity with SQLite, cookie auth, configurable password policy, admin role seeded on first boot. |
 
 ---
@@ -95,11 +100,16 @@ crowdsec-manager/
 │       │   ├── Pages/
 │       │   │   ├── Dashboard.razor
 │       │   │   ├── ThreatMap.razor          ★ real-time map
-│       │   │   ├── Decisions.razor          ★ add/remove IP bans
+│       │   │   ├── Decisions.razor          ★ add/remove IP bans (+ bypass-allowlist)
 │       │   │   ├── Alerts.razor
-│       │   │   ├── HubManagement.razor      ★ update hub / collections
+│       │   │   ├── HubManagement.razor      ★ update hub / collections / appsec / contexts
+│       │   │   ├── ExplainPage.razor       ★ test the log pipeline (cscli explain)
 │       │   │   ├── Bouncers.razor
 │       │   │   ├── Machines.razor
+│       │   │   ├── LapiPage.razor         ★ LAPI status, register, contexts
+│       │   │   ├── Simulation.razor         ★ dry-run scenarios (cscli simulation)
+│       │   │   ├── Notifications.razor      ★ list/inspect plugins (cscli notifications)
+│       │   │   ├── ConsolePage.razor        ★ Central API status (cscli console)
 │       │   │   ├── ConfigEditor.razor       ★ edit YAML config
 │       │   │   ├── Login.razor
 │       │   │   └── Logout.razor
@@ -323,17 +333,99 @@ sudo podman exec -it crowdsec-manager bash
 ### Bouncers
 
 1. Open **Bouncers**.
-2. Type a name (`nginx-bouncer`, `cloudflare-bouncer`, etc.) and click
-   **Generate API key**.
-3. The API key is shown once. Copy it into your bouncer's config.
-4. The list shows every registered bouncer with its last pull time and
-   status. Use **Revoke** to delete a bouncer.
+2. Type a name (`nginx-bouncer`, `cloudflare-bouncer`, etc.).
+3. Optionally fill the **API key** field to use a pre-shared secret
+   (`cscli bouncers add NAME --key KEY`). Leave it empty to let cscli
+   generate one.
+4. Click **Register bouncer**. When cscli generated the key, it is shown
+   once below the form - copy it into your bouncer's config.
+5. The list shows every registered bouncer with its last pull time and
+   status. Use **Inspect** to see the bouncer's resolved configuration,
+   **Revoke** to delete it, or **Prune revoked** to bulk-delete all revoked
+   bouncers.
 
 ### Machines
 
-Read-only view of CrowdSec machines registered against this Local API.
+List, register and delete CrowdSec machines registered against this Local API.
 Useful for multi-host setups where multiple CrowdSec agents push to a
 central LAPI.
+
+1. To register a new machine, type its name (or leave blank for an auto-generated
+   name), tick **Auto-validate** to skip manual validation, and click
+   **Register machine**. The output (including the generated credentials file
+   path) is shown in a `<details>` block.
+2. To remove a machine, click **Delete** on its row.
+3. Use **Prune expired** in the header to remove machines that have not pushed
+   in a while (`cscli machines prune`).
+
+### LAPI
+
+The LAPI page exposes the local CrowdSec API management commands.
+
+1. **Status** runs `cscli lapi status` and shows whether the LAPI is reachable
+   from this machine, plus the registered URL and credentials path.
+2. **Register a machine against a remote LAPI** is for agent-mode setups where
+   this CrowdSec instance pushes to a remote LAPI. Fill the form
+   (machine name, LAPI URL, optional auto-registration token) and click
+   **Register**.
+3. **LAPI contexts** lists the per-bouncer filter contexts
+   (`cscli lapi context list`). Use the Configuration page to edit them.
+
+### Explain
+
+The Explain page lets you test how CrowdSec parses a log line or a log file
+with the currently installed parsers and scenarios, **without** having to
+ingest the data through `acquis.yaml`. This is the equivalent of:
+
+```bash
+cscli explain --log "Sep 19 18:33:22 scw sshd[24347]: pam_unix(sshd:auth): authentication failure; rhost=1.2.3.4" --type syslog
+cscli explain --file /var/log/nginx/access.log --type nginx --verbose
+```
+
+1. Pick an **acquisition type** matching one of the labels declared in
+   `acquis.yaml` (syslog, nginx, apache2, sshd, docker, file, ...).
+2. Optionally add **labels** in `key:value,key2:value2` form.
+3. Either paste a single log line, or provide a path to a log file inside the
+   container (typically under `/var/log/...`).
+4. Click **Explain line** or **Explain file**. The full pipeline output is
+   shown in a `<details>` block with the exit code.
+
+### Simulation
+
+Simulation mode lets you validate new scenarios without enforcing bans.
+When enabled, CrowdSec still records alerts and decisions in its database,
+but bouncers do not actually block the source IP.
+
+1. Open **Simulation** to see the global state and per-scenario entries.
+2. Use **Enable globally** / **Disable globally** to flip the global flag
+   (`cscli simulation enable` / `disable`).
+3. To dry-run a single scenario, type its name (`crowdsecurity/ssh-bf`) and
+   click **Add scenario**. Use **Remove** to take it out of simulation.
+
+### Notifications
+
+Notification plugins forward alerts to external systems (email, Slack,
+HTTP webhook, Sentinel). The plugin lifecycle is:
+
+1. Drop a YAML config in `/etc/crowdsec/notifications/<name>.yaml`.
+2. Reference it in `profiles.yaml` under `notifications`.
+3. Reload CrowdSec (use the **Reload CrowdSec** action on the Hub page).
+
+The **Notifications** page lists configured plugins (`cscli notifications
+list`) and lets you inspect each one's resolved configuration. The YAML
+files themselves are edited from the **Configuration** page.
+
+### Console (Central API)
+
+The CrowdSec Console is the central SaaS for aggregating alerts across
+instances and sharing threat intelligence. Registration is free.
+
+1. Open **Console** to see the registration status
+   (`cscli console status`).
+2. Use **Enable alert sharing** to push new alerts to the Console
+   (`cscli console enable alerts`), or **Disable** to stop pushing.
+3. The credentials file (`online_api_credentials.yaml`) is editable from
+   the **Configuration** page if you need to re-register.
 
 ---
 
@@ -408,6 +500,33 @@ Linux; protect the containing host volume accordingly.
   future upgrades; the editor displays a warning before direct edits.
 - Bouncer API keys are shown **once** at creation time ( CrowdSec stores
   them hashed). Save them immediately.
+
+---
+
+## Smoke test on a Linux host
+
+The script `tests/shell/smoke-test.sh` orchestrates the end-to-end checks
+that require a real Linux host with `sudo`, `podman`, `systemd` and `curl`.
+It builds the image, starts a temporary container, runs through the
+login/cookie round-trip, validates `crowdsec -t`, exercises the config
+backup, adds a manual decision and verifies that the `ThreatFeedService`
+is polling LAPI in the logs.
+
+```bash
+sudo ./tests/shell/smoke-test.sh
+# or, after you already built the image:
+sudo ./tests/shell/smoke-test.sh --no-build
+# to also install the Quadlet and verify systemctl is-active/enabled:
+sudo ./tests/shell/smoke-test.sh --quadlet
+# to keep the container running at the end (for manual inspection):
+sudo ./tests/shell/smoke-test.sh --keep-container
+```
+
+The script writes a detailed log to `/tmp/crowdsec-manager-smoke.log` and
+exits `0` on success, `1` if any check failed, `2` if a prerequisite is
+missing. It exercises the 7 "to validate on Linux host" items from
+`TODO.md` in a single pass. A "TODO.md mapping" section at the end of the
+log explicitly maps each script section to the corresponding TODO line.
 
 ---
 

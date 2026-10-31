@@ -23,7 +23,7 @@
 
 <section class="card">
     <header>
-            <h2>Hub items (@_items.Count)</h2>
+        <h2>Hub items (@_items.Count)</h2>
         <div class="actions">
             <label class="inline">Filter
                 <input type="text" @bind="_filter" placeholder="name, type..." />
@@ -73,11 +73,38 @@
     }
 </section>
 
+<section class="card">
+    <header>
+        <h2>Hub diagnostics</h2>
+        <div class="actions">
+            <input type="text" @bind="_searchQuery" placeholder="search: nginx, ssh..." />
+            <button class="btn" disabled="@_busyDiag" @onclick="HubSearch">Search</button>
+            <button class="btn ghost" disabled="@_busyDiag" @onclick="HubBranch">Show branch</button>
+            <button class="btn ghost" disabled="@_busyDiag" @onclick="HubTypes">List types</button>
+        </div>
+    </header>
+    <p class="muted small">
+        <strong>Search</strong> runs <code class="mono">cscli hub search "&lt;query&gt;"</code>.
+        <strong>Show branch</strong> prints the hub branch selected for this CrowdSec version.
+        <strong>List types</strong> prints the item types supported by this cscli build.
+    </p>
+    @if (_diagOutput is not null)
+    {
+        <details class="raw" open>
+            <summary>@_diagTitle</summary>
+            <pre class="mono">@_diagOutput</pre>
+        </details>
+    }
+</section>
+
 @code {
     private List<CsHubItem> _items = new();
     private string _filter = "";
-    private bool _busy;
+    private string _searchQuery = "";
+    private bool _busy, _busyDiag;
     private string? _msg; private bool _err;
+    private string? _diagOutput;
+    private string _diagTitle = "Output";
 
     protected override async Task OnInitializedAsync() => await Refresh();
 
@@ -164,6 +191,52 @@
         }
         finally { _busy = false; }
     }
+
+    // ---- Hub diagnostics ----
+
+    private async Task HubSearch()
+    {
+        _busyDiag = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                _err = true; _msg = "Search query is required."; return;
+            }
+            var r = await Cli.HubSearchAsync(_searchQuery.Trim());
+            _diagTitle = $"cscli hub search \"{_searchQuery}\"";
+            _diagOutput = FormatDiag(r);
+        }
+        finally { _busyDiag = false; }
+    }
+
+    private async Task HubBranch()
+    {
+        _busyDiag = true;
+        try
+        {
+            var r = await Cli.HubBranchAsync();
+            _diagTitle = "cscli hub branch";
+            _diagOutput = FormatDiag(r);
+        }
+        finally { _busyDiag = false; }
+    }
+
+    private async Task HubTypes()
+    {
+        _busyDiag = true;
+        try
+        {
+            var r = await Cli.HubTypesAsync();
+            _diagTitle = "cscli hub types";
+            _diagOutput = FormatDiag(r);
+        }
+        finally { _busyDiag = false; }
+    }
+
+    private static string FormatDiag(CliResult r)
+        => r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
+           + $"\n--- exit code: {r.ExitCode} ---";
 
     private static string? Truncate(string? s, int n)
         => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);

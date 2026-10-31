@@ -21,6 +21,11 @@
         <label>Reason
             <input type="text" @bind="_reason" placeholder="Manual SOC decision" />
         </label>
+        <label class="checkbox">
+            <input type="checkbox" @bind="_bypassAllowlist" />
+            <span>Bypass allowlist</span>
+            <small class="muted">Force the ban even if the IP is in a CrowdSec allowlist.</small>
+        </label>
         <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Ban IP</button>
     </div>
     @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
@@ -66,6 +71,7 @@
     private string _duration = "4h";
     private string _type = "ban";
     private string _reason = "Manual SOC decision";
+    private bool _bypassAllowlist;
     private List<CsDecision> _list = new();
     private bool _busyAdd, _busyDel;
     private string? _msg; private bool _err;
@@ -91,12 +97,12 @@
             {
                 _err = true; _msg = "IP address is required."; return;
             }
-            var r = await Cli.AddDecisionAsync(_ip, _duration, _reason, _type);
+            var r = await Cli.AddDecisionAsync(_ip, _duration, _reason, _type, _bypassAllowlist);
             _err = !r.Success;
             _msg = r.Success
-                ? $"Added decision for {_ip} ({_duration}, {_type})."
+                ? $"Added decision for {_ip} ({_duration}, {_type}{(_bypassAllowlist ? ", bypass allowlist" : "")})."
                 : $"Failed: {r.FlattenError() ?? r.Stderr}";
-            if (r.Success) { _ip = ""; await Refresh(); }
+            if (r.Success) { _ip = ""; _bypassAllowlist = false; await Refresh(); }
         }
         finally { _busyAdd = false; }
     }
