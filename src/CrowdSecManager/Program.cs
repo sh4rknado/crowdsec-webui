@@ -2,6 +2,7 @@ using CrowdSecManager.Areas.Identity.Data;
 using CrowdSecManager.Data;
 using CrowdSecManager.Models;
 using CrowdSecManager.Services;
+using System.Collections;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -9,6 +10,11 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var processEnvironment = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+    processEnvironment[entry.Key.ToString()!] = entry.Value?.ToString();
+builder.Configuration.AddInMemoryCollection(CrowdSecEnvironmentMapper.ToConfiguration(processEnvironment));
 
 // ---- Configuration bindings ----
 builder.Services.Configure<CrowdSecOptions>(builder.Configuration.GetSection("CrowdSec"));

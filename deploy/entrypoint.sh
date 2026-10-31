@@ -17,10 +17,33 @@
 #   LOCAL_API_URL            override the LAPI URL the manager connects to
 set -euo pipefail
 
-CONFIG_DIR="${CROWDSEC_CONFIG_DIR:-/etc/crowdsec}"
-DATA_DIR="${CROWDSEC_DATA_DIR:-/var/lib/crowdsec/data}"
+CONFIG_DIR="${CrowdSec__ConfigDir:-${CROWDSEC_CONFIG_DIR:-/etc/crowdsec}}"
+DATA_DIR="${CrowdSec__DataDir:-${CROWDSEC_DATA_DIR:-/var/lib/crowdsec/data}}"
 MANAGER_DB_DIR="$(dirname "${Database__Path:-/var/lib/crowdsec-manager/app.db}")"
-LOCAL_API_URL="${LOCAL_API_URL:-http://127.0.0.1:8080}"
+LOCAL_API_URL="${CrowdSec__LocalApiUrl:-${LOCAL_API_URL:-http://127.0.0.1:8080}}"
+GEOIP_DB_PATH="${GeoIp__DatabasePath:-${GEOIP_DB_PATH:-/var/lib/GeoIP/GeoLite2-City.mmdb}}"
+HOME_LATITUDE="${GeoIp__HomeLatitude:-${HOME_LATITUDE:-50.8503}}"
+HOME_LONGITUDE="${GeoIp__HomeLongitude:-${HOME_LONGITUDE:-4.3517}}"
+HOME_LABEL="${GeoIp__HomeLabel:-${HOME_LABEL:-Protected host}}"
+
+if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ] && [ -n "${CrowdSec__BouncerApiKey:-}" ]; then
+    CROWDSEC_BOUNCER_APIKEY="${CrowdSec__BouncerApiKey}"
+fi
+
+# Keep legacy deployment names and ASP.NET's nested configuration keys in sync.
+export CROWDSEC_CONFIG="$CONFIG_DIR"
+export CROWDSEC_CONFIG_DIR="$CONFIG_DIR"
+export CROWDSEC_DATA_DIR="$DATA_DIR"
+export LOCAL_API_URL
+export GEOIP_DB_PATH
+export HOME_LATITUDE HOME_LONGITUDE HOME_LABEL
+export CrowdSec__ConfigDir="$CONFIG_DIR"
+export CrowdSec__DataDir="$DATA_DIR"
+export CrowdSec__LocalApiUrl="$LOCAL_API_URL"
+export GeoIp__DatabasePath="$GEOIP_DB_PATH"
+export GeoIp__HomeLatitude="$HOME_LATITUDE"
+export GeoIp__HomeLongitude="$HOME_LONGITUDE"
+export GeoIp__HomeLabel="$HOME_LABEL"
 
 mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$MANAGER_DB_DIR" /var/lib/GeoIP /var/lib/crowdsec-manager/backups
 
@@ -29,7 +52,6 @@ log() { echo "[entrypoint] $*"; }
 # --- 1. Bootstrap CrowdSec config if missing ---
 if [ ! -f "$CONFIG_DIR/config.yaml" ] && [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
     log "Bootstrapping CrowdSec config in $CONFIG_DIR ..."
-    export CROWDSEC_CONFIG="$CONFIG_DIR"
     # cscli config gen writes a default config.yaml + profiles.yaml + acquis.yaml
     # into $CROWDSEC_CONFIG (defaults to /etc/crowdsec)
     if command -v cscli >/dev/null 2>&1; then
@@ -75,6 +97,10 @@ if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ]; then
         log "WARNING: 'cscli bouncers add' failed - is the LAPI running?"
     fi
 fi
+
+# ASP.NET reads the bouncer token from CrowdSec:BouncerApiKey. Export it after
+# registration too, because registration may have generated the token above.
+export CrowdSec__BouncerApiKey="${CROWDSEC_BOUNCER_APIKEY:-}"
 
 # --- 4. Verify an admin password was provided ---
 if [ -z "${ADMIN_PASSWORD:-}" ]; then

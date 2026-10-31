@@ -34,8 +34,7 @@ breaks if I touch X".
 ```
 PID 1:  tini -> entrypoint.sh
           |
-          +---> crowdsec -no-api   (background)        # CrowdSec log processor
-          +---> cscli lapi serve   (background)        # CrowdSec Local API (port 8080)
+          +---> crowdsec -error    (background)        # Log processor + Local API (port 8080)
           +---> dotnet CrowdSecManager.dll             # Blazor UI (port 8081) - foreground
 ```
 
@@ -44,13 +43,17 @@ The `entrypoint.sh` script (run by `tini` as PID 1) is responsible for:
 1. Creating bind-mount target directories.
 2. Bootstrapping a CrowdSec config with `cscli config gen` if `/etc/crowdsec/config.yaml` does not exist.
 3. Registering `crowdsec-manager` as a CrowdSec bouncer via `cscli bouncers add` and exporting its API key to `CROWDSEC_BOUNCER_APIKEY`.
-4. Starting the `crowdsec` daemon and `cscli lapi serve` in the background.
-5. `exec`ing `dotnet CrowdSecManager.dll` as the foreground process so signals propagate correctly.
+4. Starting the `crowdsec` daemon in the background; it serves the Local API itself.
+5. Mapping the bouncer key and deployment paths into ASP.NET configuration variables.
+6. `exec`ing `dotnet CrowdSecManager.dll` as the foreground process so termination signals propagate correctly.
 
-If `NO_BOOTSTRAP_CROWDSEC=1` is set, steps 1–4 are skipped and the
-container assumes a host CrowdSec is reachable at `CrowdSec__LocalApiUrl`
-(default `http://127.0.0.1:8080`). This is the typical deployment when
-CrowdSec already runs as a host systemd unit.
+If `NO_BOOTSTRAP_CROWDSEC=1` is set, config bootstrap and the in-container
+CrowdSec daemon are skipped. Bouncer registration still runs unless an API
+key was provided; `cscli` must then be configured for the host Local API.
+This is the typical deployment when CrowdSec already runs as a host systemd
+unit. The manager reads its API key and URL from `CrowdSec__BouncerApiKey` and
+`CrowdSec__LocalApiUrl`; legacy `CROWDSEC_BOUNCER_APIKEY` and `LOCAL_API_URL`
+names are mapped to those keys by the entrypoint and application.
 
 ### 2.2 .NET application services
 
@@ -59,7 +62,7 @@ CrowdSec already runs as a host systemd unit.
 | `AppDbContext` | Scoped | EF Core SQLite for app metadata: `ApplicationUser`, `IdentityRole`, `ThreatHistoryEntry`. |
 | `ApplicationUser` / `IdentityRole` | — | ASP.NET Identity entities. Roles seeded at first boot: `Administrator`. |
 | `ICrowdSecCliService` | Singleton | Wraps `cscli` via `Process.Start` with async stdout/stderr streaming, JSON output auto-append, configurable timeout. All hub/decisions/bouncers/machines/alerts commands go through this. |
-| `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CROWDSEC_BOUNCER_APIKEY`; used for health and decision reads. Bouncer credentials cannot search alerts. |
+| `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CrowdSec__BouncerApiKey` (the entrypoint maps the legacy `CROWDSEC_BOUNCER_APIKEY`); used for health and decision reads. Bouncer credentials cannot search alerts. |
 | `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over `GeoLite2-City.mmdb`. Falls back to a hash-derived location when no DB is mounted. Resolves private IPs to the home location. |
 | `IConfigFileService` | Scoped | Reads/writes whitelisted top-level CrowdSec YAML plus YAML under `acquis.d`, `notifications`, parsers, scenarios, postoverflows, collections, contexts and AppSec config directories. Validates syntax with YamlDotNet and atomically replaces files. Tar-backs up `/etc/crowdsec/` on demand. |
 | `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and publishes events through `ThreatMapEventBus`. Falls back to `cscli` for decisions if LAPI is unreachable. |
@@ -89,7 +92,7 @@ CrowdSec already runs as a host systemd unit.
 [crowdsec log processor]
         │ parses /var/log/*, evaluates scenarios
         ▼
-[CS SQLite DB]  ── (LAPI write) ──►  [cscli lapi serve :8080]
+[CS SQLite DB]  ── (LAPI write) ──►  [crowdsec daemon / LAPI :8080]
                                               ▲
                                               │ cscli alerts list (poll every 8s)
                                               │
