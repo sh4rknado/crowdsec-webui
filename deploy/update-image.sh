@@ -21,7 +21,7 @@ repo_dir="$(cd -- "${script_dir}/.." && pwd)"
 image="localhost/crowdsec-manager:latest"
 
 echo "Rebuilding ${image} and refreshing the CrowdSec base image..."
-podman build --pull=always -t "${image}" -f "${repo_dir}/Dockerfile" "${repo_dir}"
+podman build --format docker --pull=always -t "${image}" -f "${repo_dir}/Dockerfile" "${repo_dir}"
 
 echo "Restarting crowdsec-manager.service..."
 systemctl restart crowdsec-manager.service

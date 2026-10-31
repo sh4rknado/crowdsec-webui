@@ -94,7 +94,7 @@
         await Task.CompletedTask;
     }
 
-    private async Task Save()
+    private void Save()
     {
         if (_current is null) return;
         _busy = true; _msg = null;

@@ -317,7 +317,7 @@ system service (rootful) use case.
 ```bash
 cd /path/to/crowdsec-manager
 git pull
-sudo podman build -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker -t localhost/crowdsec-manager:latest -f Dockerfile .
 sudo systemctl restart crowdsec-manager
 ```
 
@@ -331,7 +331,7 @@ release:
 
 ```bash
 sudo podman pull crowdsecurity/crowdsec:latest
-sudo podman build --no-cache -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker --no-cache -t localhost/crowdsec-manager:latest -f Dockerfile .
 sudo systemctl restart crowdsec-manager
 
 # Then upgrade hub content from the UI (Hub & Collections → Update index → Upgrade all)

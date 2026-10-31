@@ -22,7 +22,7 @@
 @code {
     private bool _csOk = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
         // Periodically refresh the LAPI status indicator
         _ = Task.Run(async () =>
@@ -35,5 +35,7 @@
                 await Task.Delay(15000);
             }
         });
+
+        return Task.CompletedTask;
     }
 }

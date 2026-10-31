@@ -1,6 +1,6 @@
 # État du projet — CrowdSec Manager
 
-État établi le 31 octobre 2026 à partir de `readme.md`, `workload.md`, du code source et de la documentation officielle CrowdSec.
+État établi le 31 octobre 2026 à partir de `readme.md`, `workload.md`, du code source, des essais Podman sous Debian WSL et de la documentation officielle CrowdSec.
 
 ## Implémenté dans le code
 
@@ -38,25 +38,35 @@
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
 - [x] `dotnet test src/CrowdSecManager.sln -c Release` : 87 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 87 tests.
+- [x] Build Podman Linux avec `crowdsecurity/crowdsec:latest` réel (Alpine 3.24) : le Dockerfile a été corrigé de `apt-get` vers `apk`, et installe ASP.NET Core 8 `linux-musl-x64`. Le premier build a mis en évidence et permis de corriger deux avertissements C# (`MainLayout` et `ConfigEditor`).
+- [x] `dotnet test` après corrections : 87 tests réussis ; `dotnet build -c Release --no-restore` : 0 avertissement, 0 erreur. Build de l’image Podman terminé avec succès après correction Alpine.
+- [x] Les commandes Podman de build utilisent `--format docker` afin de préserver dans l’image Quadlet le `HEALTHCHECK` que le format OCI par défaut ignorait.
+- [x] Smoke test de l’image Podman : ASP.NET démarre sur Alpine .NET 8, `/health` répond HTTP 200, le Healthcheck image est présent. En mode moteur réel, l’initialiseur officiel prépare le hub, le LAPI devient disponible et le bouncer est enregistré automatiquement.
+- [x] Test réel de l’authentification LAPI avec la clé bouncer générée par l’image : `Authorization: Bearer` renvoie HTTP 403, `X-Api-Key` renvoie HTTP 200. Le client et le test unitaire ont été corrigés pour utiliser `X-Api-Key`.
+- [x] Tester les décisions sur le LAPI jetable : ajout de `203.0.113.42` pour 10 minutes, lecture de son ID `1`, suppression par ID puis vérification que `cscli decisions list -o json` renvoie `[]`.
+- [x] Tester `crowdsec -t -c /etc/crowdsec/config.yaml` sur la configuration issue de l’image CrowdSec `v1.8.2` ; la validation se termine par `Configuration test done` avec code 0.
+- [x] Envoyer un vrai `SIGHUP` au moteur CrowdSec du conteneur, puis vérifier que `cscli lapi status` réussit et que le conteneur reste actif.
+- [x] Vérifier le polling périodique réel de `ThreatFeedService` : les journaux de l’image reconstruite montrent plusieurs cycles `/health` et `/v1/decisions` avec HTTP 200 auprès du LAPI CrowdSec actif.
 - [x] Tests JavaScript du renderer exécutés dans le runtime Node de la session : 4 assertions passent sur le plafond/LRU des sources, leur expiration, le compteur/ripple et le timeout CDN (`tests/javascript/threatmap.test.mjs`).
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
 
-État des outils vérifié localement le 31 octobre 2026 : l’environnement est Windows ; les binaires CrowdSec/Cscli installés annoncent `v1.6.0-4b8e6cd7`. `cscli lapi status` échoue avant la connexion car Windows refuse l’accès à `C:\ProgramData\CrowdSec\config\local_api_credentials.yaml`. Podman, Docker et systemd sont absents ; WSL renvoie `Wsl/E_ACCESSDENIED`. Les vérifications Linux/LAPI ci-dessous restent donc ouvertes.
+État des outils vérifié localement le 31 octobre 2026 : l’hôte est Windows avec CrowdSec/Cscli `v1.6.0-4b8e6cd7`. `cscli lapi status` y échoue avant la connexion car Windows refuse l’accès à `C:\ProgramData\CrowdSec\config\local_api_credentials.yaml`. Debian WSL est utilisable avec Podman rootless `5.4.2` et systemd actif ; l’image officielle `crowdsecurity/crowdsec:latest` a fourni CrowdSec Alpine `3.24`. Les essais du moteur et du LAPI ont été faits dans un conteneur jetable, pas sur le service Quadlet de production. `sudo` dans WSL demande un mot de passe, donc l’installation/redémarrage du service système reste à vérifier sur l’hôte de déploiement.
 
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
-- [x] Vérifier la syntaxe Bash (`bash -n`) des trois scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh` et `deploy/entrypoint.sh` avec Git Bash ; Podman/systemd restent absents ici.
+- [x] Vérifier la syntaxe Bash (`bash -n`) des scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh`, `deploy/entrypoint.sh` et du nouveau test de déploiement.
 - [x] Tester le démarrage isolé de `deploy/entrypoint.sh` avec `cscli`/`dotnet` remplacés par des stubs : branche side-by-side sans bootstrap, propagation des chemins, de l’URL LAPI, du token bouncer, des coordonnées GeoIP et rejet d’un timeout non valide (19 assertions).
 - [x] Tester avec un faux initialiseur d’image le démarrage et l’arrêt coordonné CrowdSec/ASP.NET, la détection d’un arrêt moteur et la reprise de la clé bouncer après redémarrage ; 16 assertions vérifient l’init, le health LAPI, la transmission de la clé en mode `0600`, l’absence de seconde inscription et l’échec du superviseur.
 - [x] Tester les garde-fous des scripts `deploy/update-image.sh` et `deploy/install-quadlet.sh` : les deux refusent un lancement non-root avant toute action (2 assertions).
+- [x] Ajouter/exécuter `tests/shell/deploy-build-format.test.sh` : avec des commandes système simulées, vérifie que l’installation Quadlet appelle le build en format Docker, recharge systemd, et que le script de mise à jour conserve ce format (4 assertions).
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
-- [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
-- [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
+- [x] Valider l’amorçage officiel CrowdSec, la disponibilité LAPI, l’inscription bouncer et les commandes `cscli` sur un conteneur Linux jetable avec l’image réelle ; le conteneur doit avoir un montage sur `/var/lib/crowdsec/data`.
+- [x] Exécuter `cscli hub update`, parser le JSON `cscli hub list -a -o json`, puis installer/supprimer `crowdsecurity/nginx` et exécuter `cscli hub upgrade` sur ce moteur isolé.
 - [x] Vérifier avec CrowdSec 1.6 installé que `cscli hub list -a -o json` retourne un objet de groupes (`collections`, `parsers`, etc.) ; le parseur de l’application a été adapté et testé contre cette structure.
 - [x] Tester avec TestServer l’endpoint applicatif `/health` (HTTP 200 + JSON).
-- [ ] Tester le LAPI `/v1/decisions` sur CrowdSec réel avec une vraie clé bouncer.
-- [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête Bearer et repli cscli quand l’API échoue.
+- [x] Tester `/v1/decisions` sur le LAPI réel avec la vraie clé bouncer auto-générée : `X-Api-Key` donne HTTP 200 ; l’ancien en-tête Bearer renvoyait 403 et a été corrigé dans le service et le test unitaire.
+- [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête `X-Api-Key` et repli cscli quand l’API échoue.
 - [x] Propager l’annulation du client LAPI pour les sondes et les statistiques au lieu de la traiter comme une panne réseau/repli ; deux tests vérifient l’annulation et l’absence d’appel CLI.
 - [x] Relier les variables legacy `CROWDSEC_BOUNCER_APIKEY`, `LOCAL_API_URL`, chemins GeoIP/CrowdSec et coordonnées de la carte aux clés de configuration ASP.NET ; tests de mapping et priorité `.NET` inclus.
 - [x] Supprimer le mot de passe administrateur faible présent par défaut dans le Quadlet et ajouter un test de régression.
@@ -87,9 +97,9 @@
 - [x] Persister les clés ASP.NET Data Protection dans le répertoire applicatif afin que les cookies d’authentification survivent au redémarrage ; chemin surchargeable avec `DataProtection__KeysPath`.
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.
-- [ ] Valider sur l’hôte Linux que `crowdsec -t` accepte la configuration de déploiement et présente des erreurs compréhensibles dans l’éditeur.
+- [ ] Valider sur l’hôte Quadlet de déploiement que `crowdsec -t` et l’éditeur affichent les diagnostics sur la configuration réelle montée.
 - [x] Validation isolée de CrowdSec 1.6 Windows : `crowdsec -t -no-api -no-capi` accepte le `config.yaml` courant avec copies temporaires des chemins DB/log et des credentials factices. Cela valide le chargement local de la configuration sans tester LAPI/CAPI ni remplacer la validation Linux ; l’accès aux credentials/journaux actifs reste refusé.
-- [ ] Tester le rechargement `SIGHUP` sur le conteneur autonome et documenter/valider l’action de reload manuelle en mode side-by-side.
+- [x] Tester le rechargement `SIGHUP` sur un conteneur CrowdSec réel ; le mode side-by-side continue de documenter le redémarrage manuel de l’instance CrowdSec hôte, qui n’est pas accessible dans WSL.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
 - [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
 - [x] Auditer les commandes `cscli` supplémentaires : AppSec, allowlists, simulation et gestion des credentials ne sont pas exposées. Elles sont conservées comme pistes de backlog; la portée demandée ici reste Hub, configuration YAML, décisions IP et carte des menaces.

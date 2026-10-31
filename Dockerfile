@@ -36,21 +36,23 @@ RUN test -f /docker_start.sh \
 # Switch to root for system-level installs
 USER root
 
-# Install ASP.NET 8 runtime + jq + ca-certificates + iproute2 (for cscli LAPI reload)
-# crowdsecurity/crowdsec is debian-based
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+# Install ASP.NET 8 runtime + jq + ca-certificates + iproute2 (for cscli LAPI reload).
+# The official CrowdSec image is Alpine Linux, so use apk and the musl runtime.
+RUN apk add --no-cache \
+        bash \
         ca-certificates \
         curl \
-        jq \
+        icu-libs \
         iproute2 \
+        jq \
+        libstdc++ \
         procps \
         tini \
     && curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
     && /tmp/dotnet-install.sh --channel 8.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
     && ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet \
-    && rm -rf /var/lib/apt/lists/* /tmp/dotnet-install.sh
+    && rm -f /tmp/dotnet-install.sh
 
 ENV DOTNET_ROOT=/usr/share/dotnet \
     DOTNET_RUNNING_IN_CONTAINER=true \

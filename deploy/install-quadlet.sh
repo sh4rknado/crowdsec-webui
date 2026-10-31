@@ -41,7 +41,7 @@ done
 
 if [ "$BUILD" -eq 1 ]; then
     echo "==> Building container image: $IMAGE_NAME"
-    podman build -t "$IMAGE_NAME" -f "$PROJECT_ROOT/Dockerfile" "$PROJECT_ROOT"
+    podman build --format docker -t "$IMAGE_NAME" -f "$PROJECT_ROOT/Dockerfile" "$PROJECT_ROOT"
 fi
 
 echo "==> Reloading systemd"

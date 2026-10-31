@@ -143,7 +143,7 @@ crowdsec-manager/
 
 ```bash
 cd crowdsec-manager
-sudo podman build --pull=always -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker --pull=always -t localhost/crowdsec-manager:latest -f Dockerfile .
 ```
 
 ### 2. Set the initial admin password
@@ -247,7 +247,7 @@ sudo systemctl stop crowdsec-manager
 sudo systemctl start crowdsec-manager
 
 # Rebuild image after code change
-sudo podman build -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker -t localhost/crowdsec-manager:latest -f Dockerfile .
 sudo systemctl restart crowdsec-manager
 
 # Update CrowdSec engine and manager from current source/base image

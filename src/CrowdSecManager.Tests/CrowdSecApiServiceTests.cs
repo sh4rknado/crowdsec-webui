@@ -12,7 +12,7 @@ namespace CrowdSecManager.Tests;
 public sealed class CrowdSecApiServiceTests
 {
     [Fact]
-    public async Task GetDecisions_UsesVersionedRouteAndBouncerBearerToken()
+    public async Task GetDecisions_UsesVersionedRouteAndBouncerApiKeyHeader()
     {
         HttpRequestMessage? sentRequest = null;
         var handler = new StubHandler(request =>
@@ -28,8 +28,8 @@ public sealed class CrowdSecApiServiceTests
         Assert.Single(decisions);
         Assert.Equal(23, decisions[0].Id);
         Assert.Equal("http://lapi.test/v1/decisions", sentRequest!.RequestUri!.ToString());
-        Assert.Equal("Bearer", sentRequest.Headers.Authorization!.Scheme);
-        Assert.Equal("bouncer-token", sentRequest.Headers.Authorization.Parameter);
+        Assert.True(sentRequest.Headers.TryGetValues("X-Api-Key", out var apiKeys));
+        Assert.Equal("bouncer-token", Assert.Single(apiKeys));
     }
 
     [Fact]
