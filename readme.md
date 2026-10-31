@@ -40,7 +40,7 @@ a single `systemctl start`.
 │   │  (port 8080)       │  HTTP   │   port 8081                  │    │
 │   └────────────────────┘         └──────────────┬───────────────┘    │
 │             ▲                                   │                    │
-│             │ /var/log (read-only)              │ /hubs/threatmap    │
+│             │ /var/log (read-only)              │ Blazor circuit     │
 │             │ /etc/crowdsec (rw)                ▼                    │
 │             │ /var/lib/crowdsec (rw)       Browser (dark SOC UI)     │
 │             │ /var/lib/GeoIP (ro)               ▲                    │
@@ -104,13 +104,13 @@ crowdsec-manager/
 │       │   │   ├── Login.razor
 │       │   │   └── Logout.razor
 │       │   └── Shared/RedirectToLogin.razor
-│       ├── Hubs/ThreatMapHub.cs     # SignalR hub + IThreatMapClient
 │       ├── Services/
 │       │   ├── CrowdSecCliService.cs       # cscli wrapper
 │       │   ├── CrowdSecApiService.cs       # LAPI REST client
 │       │   ├── GeoIpService.cs             # MaxMind GeoLite2 reader
 │       │   ├── ConfigFileService.cs        # YAML round-trip + validation
-│       │   └── ThreatFeedService.cs        # BackgroundService polling LAPI
+│       │   ├── ThreatFeedService.cs        # BackgroundService polling CrowdSec
+│       │   └── ThreatMapEventBus.cs        # Authenticated Blazor circuit fan-out
 │       ├── Data/                            # SQLite AppDbContext + seeder
 │       ├── Models/                          # DTOs + options
 │       ├── Pages/_Host.cshtml               # Blazor host page
@@ -143,7 +143,7 @@ crowdsec-manager/
 
 ```bash
 cd crowdsec-manager
-sudo podman build -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --pull=always -t localhost/crowdsec-manager:latest -f Dockerfile .
 ```
 
 ### 2. Install the Quadlet
@@ -253,6 +253,9 @@ sudo systemctl start crowdsec-manager
 sudo podman build -t localhost/crowdsec-manager:latest -f Dockerfile .
 sudo systemctl restart crowdsec-manager
 
+# Update CrowdSec engine and manager from current source/base image
+sudo bash deploy/update-image.sh
+
 # Enter the container for debugging
 sudo podman exec -it crowdsec-manager bash
 ```
@@ -271,6 +274,8 @@ sudo podman exec -it crowdsec-manager bash
 4. To install or remove a specific item, use the buttons in each row.
    `cscli collections install crowdsecurity/nginx` and
    `cscli collections remove crowdsecurity/nginx` are run under the hood.
+5. Click **Reload CrowdSec** after changes to signal the in-container engine.
+   If using a host CrowdSec service, reload it on the host instead.
 
 ### Edit configuration
 
@@ -278,13 +283,14 @@ sudo podman exec -it crowdsec-manager bash
 2. Pick a file from the list on the left (`config.yaml`, `profiles.yaml`,
    `acquis.yaml`, etc.).
 3. Edit the textarea. The **Validate** button parses the YAML and reports
-   any syntax error with line/col. The **Save** button re-validates and
-   writes to `/etc/crowdsec/<file>`.
-4. After saving, restart CrowdSec to apply:
+   syntax errors. The **Save** button re-validates and writes to
+   `/etc/crowdsec/<file>`. **Test CrowdSec config** runs the engine's `-t`
+   check against the saved main configuration file.
+4. After saving, click **Apply / reload CrowdSec** to signal an engine in the
+   same container. In side-by-side mode, restart the host service manually
+   because the manager container cannot signal a host process:
 
    ```bash
-   sudo podman exec crowdsec-manager systemctl restart crowdsec
-   # or, if crowdsec runs on the host:
    sudo systemctl restart crowdsec
    ```
 
@@ -304,8 +310,8 @@ sudo podman exec -it crowdsec-manager bash
 ### Real-time threat map
 
 1. Open **Threat Map**.
-2. The canvas connects to the `/hubs/threatmap` SignalR endpoint and starts
-   receiving events as soon as CrowdSec fires new alerts.
+2. The page receives events through its authenticated Blazor Server circuit
+   as the manager polls CrowdSec (8 seconds by default).
 3. Each arc is colored by severity (info / low / medium / high / critical)
    and animates from the attacker's geolocated source to your home marker
    (Brussels by default — override with `HOME_LATITUDE` / `HOME_LONGITUDE`
@@ -380,7 +386,7 @@ Then uncomment the `EnvironmentFile=` line in `crowdsec-manager.container`.
 | Threat map stays empty | No alerts in CrowdSec, or GeoLite2 not installed (still works with fallback) | `cscli alerts list` to confirm; optionally drop GeoLite2 at `/var/lib/GeoIP/` |
 | `401 Unauthorized` from LAPI in logs | Bouncer API key missing or wrong | `podman exec crowdsec-manager cscli bouncers list`; if `crowdsec-manager` is not listed, restart the container (entrypoint re-registers) |
 | `cscli: command not found` | Wrong base image or runtime stage stripped cscli | Rebuild from the official `crowdsecurity/crowdsec` base image (see Dockerfile stage 2) |
-| YAML save fails with "not in the editable whitelist" | Trying to edit a file not in the known list | Use `podman exec` + `vi` for one-off edits, or extend `ConfigFileService.KnownFiles` |
+| YAML save fails with "not in the editable whitelist" | File is outside the approved CrowdSec config paths | Keep edits under `/etc/crowdsec` or extend `ConfigFileService`'s approved paths |
 | Login page loops after sign-in | Cookie not set (SecurePolicy mismatch over HTTP) | Either use HTTPS, or set `CookieSecurePolicy.SameAsRequest` (already default) and ensure the reverse proxy forwards the correct scheme |
 | SELinux denials in `journalctl` | Missing `:Z` flag on bind mounts | Ensure every `Volume=` line in the Quadlet ends with `:Z` (the default file does) |
 
@@ -396,6 +402,8 @@ Then uncomment the `EnvironmentFile=` line in `crowdsec-manager.container`.
   `CookieSecurePolicy.SameAsRequest` is set (already the case).
 - The configuration editor allows editing `/etc/crowdsec/*.yaml` — this is
   intentional but powerful. Restrict UI access to your SOC network.
+- Editing Hub-managed parser/scenario files can mark them tainted and affect
+  future upgrades; the editor displays a warning before direct edits.
 - Bouncer API keys are shown **once** at creation time ( CrowdSec stores
   them hashed). Save them immediately.
 
@@ -417,7 +425,9 @@ export ADMIN_PASSWORD=Admin!234
 dotnet run
 ```
 
-Browse to <http://localhost:5000>.
+Browse to <http://localhost:57938> (the HTTP port in
+`Properties/launchSettings.json`). Run the unit tests with
+`dotnet test src/CrowdSecManager.Tests/CrowdSecManager.Tests.csproj`.
 
 ### EF Core migrations (if you change the schema)
 

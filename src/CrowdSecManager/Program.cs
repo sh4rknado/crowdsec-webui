@@ -1,6 +1,5 @@
 using CrowdSecManager.Areas.Identity.Data;
 using CrowdSecManager.Data;
-using CrowdSecManager.Hubs;
 using CrowdSecManager.Models;
 using CrowdSecManager.Services;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -67,15 +66,13 @@ builder.Services.AddSignalR(o =>
 {
     o.MaximumReceiveMessageSize = 256 * 1024;
     o.KeepAliveInterval = TimeSpan.FromSeconds(15);
-}).AddHubOptions<ThreatMapHub>(o =>
-{
-    o.ClientTimeoutInterval = TimeSpan.FromSeconds(45);
 });
 
 // ---- CrowdSec integration services ----
 builder.Services.AddHttpClient<ICrowdSecApiService, CrowdSecApiService>();
 builder.Services.AddSingleton<ICrowdSecCliService, CrowdSecCliService>();
 builder.Services.AddSingleton<IGeoIpService, GeoIpService>();
+builder.Services.AddSingleton<IThreatMapEventBus, ThreatMapEventBus>();
 builder.Services.AddScoped<IConfigFileService, ConfigFileService>();
 builder.Services.AddHostedService<ThreatFeedService>();
 
@@ -98,7 +95,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapBlazorHub();
-app.MapHub<ThreatMapHub>("/hubs/threatmap");
 app.MapGet("/health", () => Results.Ok(new { status = "ok", ts = DateTimeOffset.UtcNow }));
 app.MapFallbackToPage("/_Host");
 app.MapRazorPages();

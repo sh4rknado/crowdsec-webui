@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using CrowdSecManager.Data;
-using CrowdSecManager.Hubs;
 using CrowdSecManager.Models;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -13,7 +11,7 @@ namespace CrowdSecManager.Services;
 public sealed class ThreatFeedService : BackgroundService
 {
     private readonly IServiceProvider _sp;
-    private readonly IHubContext<ThreatMapHub, IThreatMapClient> _hub;
+    private readonly IThreatMapEventBus _events;
     private readonly IGeoIpService _geo;
     private readonly ThreatFeedOptions _opt;
     private readonly GeoIpOptions _geoOpt;
@@ -24,13 +22,13 @@ public sealed class ThreatFeedService : BackgroundService
     private readonly object _historyLock = new();
 
     public ThreatFeedService(IServiceProvider sp,
-        IHubContext<ThreatMapHub, IThreatMapClient> hub,
+        IThreatMapEventBus events,
         IGeoIpService geo,
         IOptions<ThreatFeedOptions> opt,
         IOptions<GeoIpOptions> geoOpt,
         ILogger<ThreatFeedService> log)
     {
-        _sp = sp; _hub = hub; _geo = geo; _opt = opt.Value; _geoOpt = geoOpt.Value; _log = log;
+        _sp = sp; _events = events; _geo = geo; _opt = opt.Value; _geoOpt = geoOpt.Value; _log = log;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -98,11 +96,11 @@ public sealed class ThreatFeedService : BackgroundService
             }
             _recent[ev.Id] = ev;
 
-            await _hub.Clients.All.ThreatSpotted(ev, stats);
+            _events.PublishThreat(ev, stats);
         }
 
         if (fresh.Count > 0 || stats.TotalAlerts > 0)
-            await _hub.Clients.All.StatsUpdated(stats);
+            _events.PublishStats(stats);
     }
 
     private async Task PollViaCliAsync(IServiceScope scope, AppDbContext db, CancellationToken ct)
@@ -125,10 +123,10 @@ public sealed class ThreatFeedService : BackgroundService
             if (ev is null) continue;
             await PersistHistoryAsync(db, ev, ct);
             _recent[ev.Id] = ev;
-            await _hub.Clients.All.ThreatSpotted(ev, stats);
+            _events.PublishThreat(ev, stats);
         }
 
-        await _hub.Clients.All.StatsUpdated(stats);
+        _events.PublishStats(stats);
     }
 
     private static ThreatMapStats BuildStats(IReadOnlyList<CsAlert> alerts, IReadOnlyList<CsDecision> decisions)

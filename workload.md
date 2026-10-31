@@ -61,16 +61,16 @@ CrowdSec already runs as a host systemd unit.
 | `ICrowdSecCliService` | Singleton | Wraps `cscli` via `Process.Start` with async stdout/stderr streaming, JSON output auto-append, configurable timeout. All hub/decisions/bouncers/machines/alerts commands go through this. |
 | `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CROWDSEC_BOUNCER_APIKEY`; used for health and decision reads. Bouncer credentials cannot search alerts. |
 | `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over `GeoLite2-City.mmdb`. Falls back to a hash-derived location when no DB is mounted. Resolves private IPs to the home location. |
-| `IConfigFileService` | Scoped | Reads/writes the whitelisted CrowdSec YAML files (`config.yaml`, `profiles.yaml`, `acquis.yaml`, etc.). Validates with YamlDotNet before saving. Tar-backs up `/etc/crowdsec/` on demand. |
-| `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and broadcasts `ThreatEvent`s to connected threat-map clients via `ThreatMapHub`. Falls back to `cscli` for decisions if LAPI is unreachable. |
-| `ThreatMapHub` | Transient (SignalR) | Strongly-typed hub (`IThreatMapClient`) broadcasting `ThreatSpotted`, `Snapshot` and `StatsUpdated`. **The hub endpoint currently has no authorization attribute; restrict access before exposing it beyond a trusted network.** |
+| `IConfigFileService` | Scoped | Reads/writes whitelisted top-level CrowdSec YAML plus YAML under `acquis.d`, `notifications`, parsers, scenarios, postoverflows, collections, contexts and AppSec config directories. Validates syntax with YamlDotNet and atomically replaces files. Tar-backs up `/etc/crowdsec/` on demand. |
+| `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and publishes events through `ThreatMapEventBus`. Falls back to `cscli` for decisions if LAPI is unreachable. |
+| `ThreatMapEventBus` | Singleton | In-process fan-out and bounded event snapshot for threat-map components. Events reach authenticated browsers only through their existing Blazor Server circuits; no separate public threat-map hub is mapped. |
 
 ### 2.3 Browser side
 
 - Blazor Server renders the UI server-side; the browser receives DOM diffs over a SignalR circuit.
-- The threat map uses an additional `HubConnection` (built in C# in
-  `ThreatMap.razor.OnAfterRenderAsync`) to the same `/hubs/threatmap`
-  endpoint. Threat events are forwarded to `window.threatMap.plotThreat(ev)` via JS interop.
+- The threat map subscribes to `ThreatMapEventBus` in its authenticated Blazor
+  circuit. New events are forwarded to `window.threatMap.plotThreat(ev)` via
+  JS interop; no anonymous `/hubs/threatmap` endpoint is exposed.
 - `wwwroot/js/threatmap.js` renders a `<canvas>`:
   - Loads TopoJSON `countries-110m.json` from jsDelivr CDN (cached) for the
     world coastline. Falls back to a deterministic dot pattern if offline.
@@ -102,9 +102,9 @@ CrowdSec already runs as a host systemd unit.
                                               │   2. GeoIpService.Resolve(ip)
                                               │   3. Build ThreatEvent
                                               │   4. Persist ThreatHistoryEntry
-                                              │   5. IHubContext.ThreatMapHub.BroadcastAsync(ev, stats)
+                                              │   5. ThreatMapEventBus.PublishThreat(ev, stats)
                                               ▼
-                                   [ThreatMapHub → SignalR]
+                                   [ThreatMapEventBus → authenticated Blazor circuit]
                                               │
                                               ▼
                                    [Browser: ThreatMap.razor]
@@ -139,12 +139,21 @@ CrowdSec already runs as a host systemd unit.
         │ textarea binding to _draft
         ▼ Save()
 [IConfigFileService.Save(relativePath, content)]
-        │ 1. whitelist check (ConfigFileService.KnownFiles)
+        │ 1. path check (top-level whitelist and approved config directories)
         │ 2. YamlDotNet parse (validation)
         │ 3. File.WriteAllText(/etc/crowdsec/<file>)
         ▼
-[/etc/crowdsec/<file>]  ── (next crowdsec restart picks it up) ──► [CrowdSec]
+[/etc/crowdsec/<file>]  ── (engine test + reload/restart picks it up) ──► [CrowdSec]
 ```
+
+The editor can invoke `crowdsec -t -c /etc/crowdsec/config.yaml` to validate
+the saved configuration with the engine. This checks the main configuration
+and its references; runtime behavior still needs verification on the target
+CrowdSec installation.
+
+The UI offers an explicit reload action that sends `SIGHUP` to a CrowdSec
+process in the same container. When using a host CrowdSec service, reload that
+host service manually; the manager container cannot signal host processes.
 
 ---
 

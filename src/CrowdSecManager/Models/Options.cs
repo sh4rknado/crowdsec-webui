@@ -28,6 +28,7 @@ public sealed class ConfigFileInfo
 public sealed class CrowdSecOptions
 {
     public string CliPath { get; set; } = "/usr/bin/cscli";
+    public string EnginePath { get; set; } = "/usr/bin/crowdsec";
     public string ConfigDir { get; set; } = "/etc/crowdsec";
     public string DataDir { get; set; } = "/var/lib/crowdsec/data";
     public string HubDir { get; set; } = "/etc/crowdsec/hub";

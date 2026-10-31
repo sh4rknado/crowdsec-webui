@@ -38,6 +38,12 @@ public sealed class ConfigFileService : IConfigFileService
         ("notifications/sentinel.yaml", "Microsoft Sentinel notification plugin configuration")
     };
 
+    private static readonly string[] EditableDirectories =
+    {
+        "acquis.d", "notifications", "parsers", "scenarios", "postoverflows",
+        "collections", "contexts", "appsec-rules", "appsec-configs"
+    };
+
     public ConfigFileService(IOptions<CrowdSecOptions> opt, ILogger<ConfigFileService> log)
     {
         _opt = opt.Value;
@@ -47,8 +53,10 @@ public sealed class ConfigFileService : IConfigFileService
     public IReadOnlyList<ConfigFileInfo> ListConfigFiles()
     {
         var list = new List<ConfigFileInfo>(KnownFiles.Length);
+        var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (rel, desc) in KnownFiles)
         {
+            included.Add(rel);
             var abs = Path.Combine(_opt.ConfigDir, rel);
             var info = new ConfigFileInfo
             {
@@ -61,6 +69,45 @@ public sealed class ConfigFileService : IConfigFileService
             };
             list.Add(info);
         }
+
+        foreach (var directory in EditableDirectories)
+        {
+            var absoluteDirectory = Path.Combine(_opt.ConfigDir, directory);
+            if (!Directory.Exists(absoluteDirectory)) continue;
+
+            var enumerationOptions = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint
+            };
+
+            try
+            {
+                foreach (var absolutePath in Directory.EnumerateFiles(absoluteDirectory, "*", enumerationOptions))
+                {
+                    if (!IsYamlPath(absolutePath)) continue;
+                    var rel = Path.GetRelativePath(_opt.ConfigDir, absolutePath).Replace('\\', '/');
+                    if (!included.Add(rel)) continue;
+                    var file = new FileInfo(absolutePath);
+                    list.Add(new ConfigFileInfo
+                    {
+                        Name = Path.GetFileName(rel),
+                        RelativePath = rel,
+                        AbsolutePath = absolutePath,
+                        Description = $"CrowdSec YAML in {directory}",
+                        SizeBytes = file.Length,
+                        LastModified = file.LastWriteTimeUtc,
+                        Content = ""
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not enumerate CrowdSec config directory {Directory}", absoluteDirectory);
+            }
+        }
+
         return list;
     }
 
@@ -112,7 +159,16 @@ public sealed class ConfigFileService : IConfigFileService
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(abs)!);
-            File.WriteAllText(abs, content);
+            var temporaryPath = abs + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(temporaryPath, content);
+                File.Move(temporaryPath, abs, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
             _log.LogInformation("Updated CrowdSec config file {Path} ({Bytes} bytes)",
                 relativePath, content.Length);
             return (true, null);
@@ -178,6 +234,21 @@ public sealed class ConfigFileService : IConfigFileService
         }
     }
 
+    private static bool IsYamlPath(string path)
+        => string.Equals(Path.GetExtension(path), ".yaml", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(Path.GetExtension(path), ".yml", StringComparison.OrdinalIgnoreCase);
+
     private bool IsAllowed(string rel)
-        => KnownFiles.Any(f => string.Equals(f.Path, rel, StringComparison.OrdinalIgnoreCase));
+    {
+        if (string.IsNullOrWhiteSpace(rel) || Path.IsPathRooted(rel)) return false;
+        var normalized = rel.Replace('\\', '/');
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0 || segments.Any(s => s is "." or "..")) return false;
+        if (!IsYamlPath(normalized)) return false;
+
+        if (segments.Length == 1)
+            return KnownFiles.Any(f => string.Equals(f.Path, normalized, StringComparison.OrdinalIgnoreCase));
+
+        return EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase);
+    }
 }

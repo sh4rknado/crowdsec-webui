@@ -13,7 +13,7 @@ public interface ICrowdSecCliService
     Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default);
     Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default);
     Task<CliResult> HubUpdateAsync(CancellationToken ct = default);
-    Task<CliResult> HubUpgradeAsync(string? item = null, CancellationToken ct = default);
+    Task<CliResult> HubUpgradeAsync(CancellationToken ct = default);
     Task<CliResult> UpgradeItemAsync(string type, string name, CancellationToken ct = default);
     Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default);
     Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default);
@@ -27,6 +27,7 @@ public interface ICrowdSecCliService
     Task<IReadOnlyList<CsMachine>> ListMachinesAsync(CancellationToken ct = default);
     Task<IReadOnlyList<CsMetric>> GetMetricsAsync(CancellationToken ct = default);
     Task<CliResult> ReloadServiceAsync(CancellationToken ct = default);
+    Task<CliResult> ValidateEngineConfigAsync(CancellationToken ct = default);
 }
 
 public sealed class CrowdSecCliService : ICrowdSecCliService
@@ -140,17 +141,12 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     public Task<CliResult> HubUpdateAsync(CancellationToken ct = default)
         => RunAsync(new[] { "hub", "update" }, ct);
 
-    public Task<CliResult> HubUpgradeAsync(string? item = null, CancellationToken ct = default)
-    {
-        var args = new List<string> { "hub", "upgrade" };
-        if (!string.IsNullOrWhiteSpace(item)) args.Add(item);
-        return RunAsync(args, ct);
-    }
+    public Task<CliResult> HubUpgradeAsync(CancellationToken ct = default)
+        => RunAsync(new[] { "hub", "upgrade" }, ct);
 
     public Task<CliResult> UpgradeItemAsync(string type, string name, CancellationToken ct = default)
     {
-        type = NormalizeItemType(type);
-        return RunAsync(new[] { type, "upgrade", name }, ct);
+        return RunAsync(CrowdSecCommandBuilder.UpgradeItem(type, name), ct);
     }
 
     public Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default)
@@ -181,20 +177,13 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     public Task<CliResult> AddDecisionAsync(string ip, string duration = "4h",
         string? reason = null, string type = "ban", CancellationToken ct = default)
     {
-        var targetFlag = ip.Contains('/', StringComparison.Ordinal) ? "--range" : "--ip";
-        var args = new List<string> { "decisions", "add", targetFlag, ip, "-d", duration, "-t", type };
-        if (!string.IsNullOrWhiteSpace(reason)) { args.Add("-r"); args.Add(reason); }
-        return RunAsync(args, ct);
+        return RunAsync(CrowdSecCommandBuilder.AddDecision(ip, duration, reason, type), ct);
     }
 
     public Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null,
         bool all = false, CancellationToken ct = default)
     {
-        var args = new List<string> { "decisions", "delete" };
-        if (all) args.Add("--all");
-        else if (id is long v) { args.Add("--id"); args.Add(v.ToString()); }
-        else if (!string.IsNullOrWhiteSpace(ip)) { args.Add("-i"); args.Add(ip); }
-        return RunAsync(args, ct);
+        return RunAsync(CrowdSecCommandBuilder.DeleteDecision(ip, id, all), ct);
     }
 
     public async Task<IReadOnlyList<CsBouncer>> ListBouncersAsync(CancellationToken ct = default)
@@ -223,8 +212,105 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 
     public Task<CliResult> ReloadServiceAsync(CancellationToken ct = default)
     {
-        // Best effort: try systemctl reload crowdsec, fall back to SIGHUP
-        return RunAsync(new[] { "lapi", "reload" }, ct);
+        return SendCrowdSecReloadAsync(ct);
+    }
+
+    public async Task<CliResult> ValidateEngineConfigAsync(CancellationToken ct = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var psi = new ProcessStartInfo
+        {
+            FileName = _opt.EnginePath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        foreach (var arg in CrowdSecCommandBuilder.TestConfig(_opt.ConfigDir)) psi.ArgumentList.Add(arg);
+
+        try
+        {
+            using var process = Process.Start(psi);
+            if (process is null)
+                return new CliResult { ExitCode = -1, Stderr = "Could not start the CrowdSec engine.", Duration = stopwatch.Elapsed };
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+            var stderrTask = process.StandardError.ReadToEndAsync(ct);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _opt.CommandTimeoutSeconds)));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return new CliResult
+                {
+                    ExitCode = -1,
+                    Stderr = ct.IsCancellationRequested ? "Configuration test cancelled." : "Configuration test timed out.",
+                    Duration = stopwatch.Elapsed
+                };
+            }
+
+            return new CliResult
+            {
+                ExitCode = process.ExitCode,
+                Stdout = await stdoutTask,
+                Stderr = await stderrTask,
+                Duration = stopwatch.Elapsed
+            };
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not test CrowdSec configuration");
+            return new CliResult { ExitCode = -1, Stderr = ex.Message, Duration = stopwatch.Elapsed };
+        }
+    }
+
+    private async Task<CliResult> SendCrowdSecReloadAsync(CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var psi = new ProcessStartInfo
+        {
+            FileName = "pkill",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        foreach (var arg in CrowdSecCommandBuilder.ReloadSignal()) psi.ArgumentList.Add(arg);
+
+        try
+        {
+            using var process = Process.Start(psi);
+            if (process is null)
+                return new CliResult { ExitCode = -1, Stderr = "Could not start pkill.", Duration = stopwatch.Elapsed };
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _opt.CommandTimeoutSeconds)));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                var message = ct.IsCancellationRequested ? "Reload cancelled." : "Reload timed out.";
+                return new CliResult { ExitCode = -1, Stderr = message, Duration = stopwatch.Elapsed };
+            }
+
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+            return new CliResult
+            {
+                ExitCode = process.ExitCode,
+                Stdout = process.ExitCode == 0 ? "Reload signal sent to CrowdSec." : "",
+                Stderr = process.ExitCode == 0 ? stderr : $"No CrowdSec process was signalled. {stderr}".Trim(),
+                Duration = stopwatch.Elapsed
+            };
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not send a reload signal to CrowdSec");
+            return new CliResult { ExitCode = -1, Stderr = ex.Message, Duration = stopwatch.Elapsed };
+        }
     }
 
     private static string NormalizeItemType(string type) => type.ToLowerInvariant() switch
@@ -246,5 +332,50 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
+    };
+}
+
+/// <summary>Builds argument vectors for commands that modify CrowdSec state.</summary>
+public static class CrowdSecCommandBuilder
+{
+    public static IReadOnlyList<string> TestConfig(string configDir)
+        => new[] { "-t", "-c", Path.Combine(configDir, "config.yaml") };
+
+    public static IReadOnlyList<string> ReloadSignal()
+        => new[] { "--signal", "HUP", "--exact", "crowdsec" };
+
+    public static IReadOnlyList<string> UpgradeItem(string type, string name)
+        => new[] { NormalizeItemType(type), "upgrade", name };
+
+    public static IReadOnlyList<string> AddDecision(string ipOrRange, string duration,
+        string? reason, string type)
+    {
+        var targetFlag = ipOrRange.Contains('/', StringComparison.Ordinal) ? "--range" : "--ip";
+        var args = new List<string> { "decisions", "add", targetFlag, ipOrRange,
+            "--duration", duration, "--type", type };
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            args.Add("--reason");
+            args.Add(reason);
+        }
+        return args;
+    }
+
+    public static IReadOnlyList<string> DeleteDecision(string? ip = null, long? id = null, bool all = false)
+    {
+        var args = new List<string> { "decisions", "delete" };
+        if (all) args.Add("--all");
+        else if (id is long value) { args.Add("--id"); args.Add(value.ToString()); }
+        else if (!string.IsNullOrWhiteSpace(ip)) { args.Add("--ip"); args.Add(ip); }
+        return args;
+    }
+
+    private static string NormalizeItemType(string type) => type.ToLowerInvariant() switch
+    {
+        "collection" or "collections" => "collections",
+        "parser" or "parsers" => "parsers",
+        "scenario" or "scenarios" => "scenarios",
+        "postoverflow" or "postoverflows" => "postoverflows",
+        _ => type
     };
 }

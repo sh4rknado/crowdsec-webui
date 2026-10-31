@@ -1,7 +1,7 @@
 @page "/hub"
 @attribute [Authorize]
 @inject ICrowdSecCliService Cli
-@inject ILogger<Hub> Log
+@inject ILogger<HubManagement> Log
 
 <PageTitle>Hub &middot; CrowdSec Manager</PageTitle>
 
@@ -11,6 +11,7 @@
         <div class="actions">
             <button class="btn primary" disabled="@_busy" @onclick="Update">Update index</button>
             <button class="btn" disabled="@_busy" @onclick="UpgradeAll">Upgrade all</button>
+            <button class="btn" disabled="@_busy" @onclick="ReloadCrowdSec">Reload CrowdSec</button>
             <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh list</button>
         </div>
     </header>
@@ -149,6 +150,20 @@
             ? $"Upgraded {it.Name}."
             : $"Failed: {r.FlattenError() ?? r.Stderr}";
         await Refresh();
+    }
+
+    private async Task ReloadCrowdSec()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Cli.ReloadServiceAsync();
+            _err = !result.Success;
+            _msg = result.Success
+                ? "Reload signal sent to the CrowdSec process in this container."
+                : $"CrowdSec could not be reloaded from this container: {result.FlattenError() ?? result.Stderr}";
+        }
+        finally { _busy = false; }
     }
 
     private static string? Truncate(string? s, int n)
