@@ -1,0 +1,113 @@
+@page "/config"
+@attribute [Authorize]
+@inject IConfigFileService Cfg
+@inject ILogger<ConfigEditor> Log
+
+<PageTitle>Configuration &middot; CrowdSec Manager</PageTitle>
+
+<section class="grid-2 cfg-grid">
+    <div class="card file-list">
+        <header><h2>Files</h2></header>
+        <ul>
+            @foreach (var f in _files)
+            {
+                <li>
+                    <button class="@(_selected == f.RelativePath ? "active" : "")"
+                            @onclick="async () => await Select(f.RelativePath)">
+                        <span class="fname">@f.RelativePath</span>
+                        <span class="fmeta">@FormatSize(f.SizeBytes) &middot; @FormatDate(f.LastModified)</span>
+                        <span class="fdesc">@f.Description</span>
+                    </button>
+                </li>
+            }
+        </ul>
+    </div>
+
+    <div class="card editor">
+        <header>
+            <h2>@(_current?.RelativePath ?? "—")</h2>
+            <div class="actions">
+                <button class="btn ghost" @onclick="Validate">Validate</button>
+                <button class="btn primary" disabled="@_busy" @onclick="Save">Save</button>
+                <button class="btn" disabled="@_busy" @onclick="Reload">Reload</button>
+            </div>
+        </header>
+
+        @if (_current is null)
+        {
+            <p class="muted">Select a file on the left to edit it.</p>
+        }
+        else
+        {
+            <textarea class="yml-editor" spellcheck="false" @bind="_draft" @bind:event="oninput"></textarea>
+            @if (!string.IsNullOrEmpty(_msg))
+            {
+                <div class="@(_err ? "err" : "ok") _msg">@_msg</div>
+            }
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<ConfigFileInfo> _files = Array.Empty<ConfigFileInfo>();
+    private ConfigFileInfo? _current;
+    private string _draft = "";
+    private bool _busy;
+    private string? _msg; private bool _err;
+
+    protected override void OnInitialized()
+    {
+        _files = Cfg.ListConfigFiles();
+    }
+
+    private async Task Select(string rel)
+    {
+        _selected = rel;
+        _current = Cfg.Load(rel);
+        _draft = _current?.Content ?? "";
+        _msg = null;
+        await Task.CompletedTask;
+    }
+    private string _selected = "";
+
+    private async Task Reload()
+    {
+        if (_current is null) return;
+        _current = Cfg.Load(_current.RelativePath);
+        _draft = _current?.Content ?? "";
+        _msg = "Reloaded from disk."; _err = false;
+        await Task.CompletedTask;
+    }
+
+    private async Task Validate()
+    {
+        var (ok, err) = Cfg.ValidateYaml(_draft);
+        _err = !ok;
+        _msg = ok ? "YAML is valid." : err;
+        await Task.CompletedTask;
+    }
+
+    private async Task Save()
+    {
+        if (_current is null) return;
+        _busy = true; _msg = null;
+        try
+        {
+            var (ok, err) = Cfg.Save(_current.RelativePath, _draft);
+            _err = !ok;
+            _msg = ok ? "Saved. Restart CrowdSec (systemctl restart crowdsec) to apply." : err;
+            if (ok) _current = Cfg.Load(_current.RelativePath);
+        }
+        finally { _busy = false; }
+    }
+
+    private static string FormatSize(long b) => b switch
+    {
+        0 => "—",
+        < 1024 => b + " B",
+        < 1024 * 1024 => (b / 1024.0).ToString("F1") + " KiB",
+        _ => (b / 1024.0 / 1024).ToString("F1") + " MiB"
+    };
+
+    private static string FormatDate(DateTime d) => d == DateTime.MinValue ? "—" : d.ToString("yyyy-MM-dd HH:mm");
+}

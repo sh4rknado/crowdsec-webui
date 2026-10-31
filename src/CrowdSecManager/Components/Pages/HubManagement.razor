@@ -1,0 +1,156 @@
+@page "/hub"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<Hub> Log
+
+<PageTitle>Hub &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>Hub management</h2>
+        <div class="actions">
+            <button class="btn primary" disabled="@_busy" @onclick="Update">Update index</button>
+            <button class="btn" disabled="@_busy" @onclick="UpgradeAll">Upgrade all</button>
+            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh list</button>
+        </div>
+    </header>
+    @if (!string.IsNullOrEmpty(_msg))
+    {
+        <div class="@(_err ? "err" : "ok") _msg">@_msg</div>
+    }
+</section>
+
+<section class="card">
+    <header>
+        <h2>Installed items (@_items.Count)</h2>
+        <div class="actions">
+            <label class="inline">Filter
+                <input type="text" @bind="_filter" placeholder="name, type..." />
+            </label>
+        </div>
+    </header>
+
+    @if (_items.Count == 0)
+    {
+        <p class="muted">No items installed or hub index not yet fetched. Click "Update index".</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead>
+                <tr><th>Name</th><th>Type</th><th>Local version</th><th>Latest</th><th>State</th><th>Description</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var it in Filtered)
+                {
+                    <tr>
+                        <td class="mono">@it.Name</td>
+                        <td>@it.Type</td>
+                        <td>@(it.LocalVersion ?? "—")</td>
+                        <td>@(it.LatestVersion ?? "—")</td>
+                        <td>
+                            @if (it.Tainted) { <span class="badge warn">tainted</span> }
+                            else if (!it.UpToDate) { <span class="badge err">outdated</span> }
+                            else if (it.Installed) { <span class="badge ok">up-to-date</span> }
+                            else { <span class="badge">available</span> }
+                        </td>
+                        <td>@Truncate(it.Description, 80)</td>
+                        <td>
+                            @if (it.Installed)
+                            {
+                                <button class="btn mini danger" @onclick="async () => await Remove(it)">Remove</button>
+                                <button class="btn mini" @onclick="async () => await Upgrade(it)">Upgrade</button>
+                            }
+                            else
+                            {
+                                <button class="btn mini primary" @onclick="async () => await Install(it)">Install</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private List<CsHubItem> _items = new();
+    private string _filter = "";
+    private bool _busy;
+    private string? _msg; private bool _err;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private IEnumerable<CsHubItem> Filtered => string.IsNullOrWhiteSpace(_filter)
+        ? _items
+        : _items.Where(i =>
+            (i.Name?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (i.Type?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (i.Description?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private async Task Refresh()
+    {
+        try { _items = (await Cli.ListHubAsync()).ToList(); }
+        catch (Exception ex) { Log.LogDebug("hub list: {Msg}", ex.Message); }
+    }
+
+    private async Task Update()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.HubUpdateAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? $"Hub index updated in {r.Duration.TotalSeconds:F1}s."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task UpgradeAll()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.HubUpgradeAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? $"All items upgraded in {r.Duration.TotalSeconds:F1}s."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Install(CsHubItem it)
+    {
+        var r = await Cli.InstallItemAsync(it.Type ?? "collections", it.Name!);
+        _err = !r.Success; _msg = r.Success
+            ? $"Installed {it.Name}."
+            : $"Failed: {r.FlattenError() ?? r.Stderr}";
+        await Refresh();
+    }
+
+    private async Task Remove(CsHubItem it)
+    {
+        var r = await Cli.RemoveItemAsync(it.Type ?? "collections", it.Name!);
+        _err = !r.Success; _msg = r.Success
+            ? $"Removed {it.Name}."
+            : $"Failed: {r.FlattenError() ?? r.Stderr}";
+        await Refresh();
+    }
+
+    private async Task Upgrade(CsHubItem it)
+    {
+        var r = await Cli.HubUpgradeAsync(it.Name);
+        _err = !r.Success; _msg = r.Success
+            ? $"Upgraded {it.Name}."
+            : $"Failed: {r.FlattenError() ?? r.Stderr}";
+        await Refresh();
+    }
+
+    private static string? Truncate(string? s, int n)
+        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
+}

@@ -1,0 +1,24 @@
+# Git context (not needed in the image)
+.git
+.gitignore
+.github
+*.md
+!readme.md
+
+# Build artifacts
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+
+# Local data
+*.db
+*.db-shm
+*.db-wal
+*.log
+backups/
+deploy/backups/
+
+# OS noise
+**/.DS_Store
+**/*.swp

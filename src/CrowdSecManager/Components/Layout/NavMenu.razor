@@ -1,0 +1,44 @@
+@inject NavigationManager Nav
+
+<aside class="app-sidebar">
+    <div class="brand">
+        <div class="brand-mark" aria-hidden="true">&#9881;</div>
+        <div class="brand-text">
+            <strong>CrowdSec</strong>
+            <span>Manager</span>
+        </div>
+    </div>
+
+    <nav class="nav">
+        <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+            <span class="ic">&#9632;</span> Dashboard
+        </NavLink>
+        <NavLink class="nav-link" href="/threatmap">
+            <span class="ic">&#9733;</span> Threat Map
+        </NavLink>
+        <NavLink class="nav-link" href="/decisions">
+            <span class="ic">&#9873;</span> Decisions
+        </NavLink>
+        <NavLink class="nav-link" href="/alerts">
+            <span class="ic">&#9888;</span> Alerts
+        </NavLink>
+        <NavLink class="nav-link" href="/hub">
+            <span class="ic">&#9776;</span> Hub &amp; Collections
+        </NavLink>
+        <NavLink class="nav-link" href="/bouncers">
+            <span class="ic">&#9881;</span> Bouncers
+        </NavLink>
+        <NavLink class="nav-link" href="/machines">
+            <span class="ic">&#9728;</span> Machines
+        </NavLink>
+        <NavLink class="nav-link" href="/config">
+            <span class="ic">&#9998;</span> Configuration
+        </NavLink>
+    </nav>
+
+    <div class="sidebar-foot">
+        <a class="nav-link logout" href="/logout">
+            <span class="ic">&#8634;</span> Sign out
+        </a>
+    </div>
+</aside>

@@ -1,0 +1,114 @@
+@page "/bouncers"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<Bouncers> Log
+
+<PageTitle>Bouncers &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header><h2>Register a new bouncer</h2></header>
+    <div class="form-row">
+        <label>Name
+            <input type="text" @bind="_newName" placeholder="nginx-bouncer" />
+        </label>
+        <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Generate API key</button>
+    </div>
+    @if (_apiKey is not null)
+    {
+        <div class="ok _msg">
+            Bouncer registered. <strong>API key (shown once):</strong>
+            <code class="mono">@_apiKey</code>
+        </div>
+    }
+    @if (_msg is not null && _apiKey is null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+<section class="card">
+    <header>
+        <h2>Registered bouncers (@_list.Count)</h2>
+        <button class="btn ghost" @onclick="Refresh">Refresh</button>
+    </header>
+    @if (_list.Count == 0)
+    {
+        <p class="muted">No bouncers registered.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead><tr><th>Name</th><th>IP</th><th>Type</th><th>Version</th><th>Last pull</th><th>Pulls</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var b in _list)
+                {
+                    <tr>
+                        <td class="mono">@b.Name</td>
+                        <td class="mono">@b.IpAddress</td>
+                        <td>@b.Type</td>
+                        <td>@b.Version</td>
+                        <td>@(b.LastPull?.ToLocalTime().ToString("u") ?? "—")</td>
+                        <td class="num">@b.PullsCount</td>
+                        <td>
+                            @if (b.Revoked) { <span class="badge err">revoked</span> }
+                            else { <span class="badge ok">active</span> }
+                        </td>
+                        <td><button class="btn mini danger" @onclick="async () => await Delete(b.Name!)">Revoke</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private string _newName = "";
+    private List<CsBouncer> _list = new();
+    private bool _busyAdd;
+    private string? _msg; private bool _err;
+    private string? _apiKey;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try { _list = (await Cli.ListBouncersAsync()).ToList(); }
+        catch (Exception ex) { Log.LogDebug("bouncers: {Msg}", ex.Message); }
+    }
+
+    private async Task Add()
+    {
+        _busyAdd = true; _msg = null; _apiKey = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_newName))
+            { _err = true; _msg = "Name is required."; return; }
+
+            var r = await Cli.AddBouncerAsync(_newName);
+            _err = !r.Success;
+            if (r.Success)
+            {
+                // cscli bouncers add prints the api key to stdout
+                _apiKey = ExtractApiKey(r.Stdout);
+                _msg = _apiKey is null ? "Bouncer registered." : null;
+                _newName = "";
+                await Refresh();
+            }
+            else _msg = $"Failed: {r.FlattenError() ?? r.Stderr}";
+        }
+        finally { _busyAdd = false; }
+    }
+
+    private async Task Delete(string name)
+    {
+        var r = await Cli.DeleteBouncerAsync(name);
+        _err = !r.Success;
+        _msg = r.Success ? $"Revoked {name}." : $"Failed: {r.FlattenError()}";
+        await Refresh();
+    }
+
+    private static string? ExtractApiKey(string stdout)
+    {
+        // cscli output looks like: "Api key for 'xxx':\n\n  abcdef..."
+        var m = System.Text.RegularExpressions.Regex.Match(
+            stdout, @"Api key[^:]*:\s*\n?\s*([A-Za-z0-9/+=]+)");
+        return m.Success ? m.Groups[1].Value.Trim() : null;
+    }
+}

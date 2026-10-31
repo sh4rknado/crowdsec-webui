@@ -1,0 +1,168 @@
+@page "/threatmap"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ICrowdSecApiService Api
+@inject IGeoIpService Geo
+@inject ILogger<ThreatMap> Log
+
+<PageTitle>Threat Map &middot; CrowdSec Manager</PageTitle>
+
+<section class="threatmap-wrap">
+    <div class="threatmap-canvas-box">
+        <canvas id="threatCanvas" width="1200" height="600"></canvas>
+        <div class="threatmap-overlay" id="threatOverlay"></div>
+        <div class="threatmap-legend">
+            <div><span class="dot info"></span> Info</div>
+            <div><span class="dot low"></span> Low</div>
+            <div><span class="dot med"></span> Medium</div>
+            <div><span class="dot high"></span> High</div>
+        </div>
+        <div class="threatmap-counter">
+            <span id="threatCount">0</span> active arcs
+        </div>
+    </div>
+
+    <aside class="threatmap-side">
+        <div class="card">
+            <h3>Live stats</h3>
+            <div class="kv"><span>Total alerts</span><b>@_stats.TotalAlerts</b></div>
+            <div class="kv"><span>Active decisions</span><b>@_stats.TotalDecisions</b></div>
+            <div class="kv"><span>Last 24h</span><b>@_stats.Last24hAlerts</b></div>
+        </div>
+
+        <div class="card">
+            <h3>Top source countries</h3>
+            @if (_topCountries.Count == 0)
+            {
+                <p class="muted small">Waiting for data...</p>
+            }
+            else
+            {
+                <ul class="barlist">
+                    @foreach (var (k, v) in _topCountries)
+                    {
+                        var pct = _topCountries.Values.Max() == 0 ? 0 : 100 * v / _topCountries.Values.Max();
+                        <li>
+                            <span class="lbl">@k</span>
+                            <span class="bar"><span style="width:@(pct)%"></span></span>
+                            <span class="val">@v</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <div class="card">
+            <h3>Recent attacks</h3>
+            @if (_recent.Count == 0)
+            {
+                <p class="muted small">No live attacks yet. The feed polls every few seconds.</p>
+            }
+            else
+            {
+                <ul class="attack-list">
+                    @foreach (var ev in _recent.Take(20))
+                    {
+                        <li>
+                            <span class="ip mono">@ev.SourceIp</span>
+                            <span class="cc">@ev.Source?.CountryIsoCode</span>
+                            <span class="scn" title="@ev.Scenario">@(ev.Scenario?.Split('/').LastOrDefault() ?? "—")</span>
+                            <span class="sev @ev.Severity.ToString().ToLowerInvariant()">@ev.Severity</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </aside>
+</section>
+
+@code {
+    private HubConnection? _hub;
+    private ThreatMapStats _stats = new();
+    private Dictionary<string, int> _topCountries = new();
+    private readonly List<ThreatEvent> _recent = new();
+    private bool _started;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        if (_started) return;
+        _started = true;
+
+        // Initial fetch so we have something on screen
+        try
+        {
+            _stats = await Api.GetSnapshotStatsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex) { Log.LogDebug("init stats: {Msg}", ex.Message); }
+
+        // Init canvas
+        await JS.InvokeVoidAsync("threatMap.init", "threatCanvas", new
+        {
+            home = new
+            {
+                lat = Geo.Home.Latitude,
+                lon = Geo.Home.Longitude,
+                label = Geo.Home.City
+            },
+            geoAvailable = Geo.IsDatabaseAvailable
+        });
+
+        // Connect SignalR hub
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/threatmap"))
+            .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5) })
+            .Build();
+
+        _hub.On<ThreatEvent, ThreatMapStats>("ThreatSpotted", (ev, stats) =>
+        {
+            _ = InvokeAsync(async () =>
+            {
+                lock (_recent)
+                {
+                    _recent.Insert(0, ev);
+                    if (_recent.Count > 50) _recent.RemoveAt(_recent.Count - 1);
+                }
+                if (ev.Source?.Country is not null)
+                {
+                    _topCountries[ev.Source.Country] =
+                        _topCountries.GetValueOrDefault(ev.Source.Country) + 1;
+                    if (_topCountries.Count > 8)
+                        _topCountries = _topCountries
+                            .OrderByDescending(x => x.Value)
+                            .Take(8)
+                            .ToDictionary(x => x.Key, x => x.Value);
+                }
+                _stats = stats;
+                StateHasChanged();
+                try { await JS.InvokeVoidAsync("threatMap.plotThreat", ev); }
+                catch (Exception ex) { Log.LogDebug("plotThreat: {Msg}", ex.Message); }
+            });
+        });
+
+        _hub.On<ThreatMapStats>("StatsUpdated", stats =>
+        {
+            _ = InvokeAsync(() =>
+            {
+                _stats = stats;
+                StateHasChanged();
+            });
+        });
+
+        try { await _hub.StartAsync(); }
+        catch (Exception ex) { Log.LogWarning("Hub connect failed: {Msg}", ex.Message); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            try { await _hub.DisposeAsync(); } catch { }
+        }
+        try { await JS.InvokeVoidAsync("threatMap.dispose"); } catch { }
+    }
+}

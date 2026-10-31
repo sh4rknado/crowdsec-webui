@@ -1,0 +1,122 @@
+using CrowdSecManager.Areas.Identity.Data;
+using CrowdSecManager.Data;
+using CrowdSecManager.Hubs;
+using CrowdSecManager.Models;
+using CrowdSecManager.Services;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ---- Configuration bindings ----
+builder.Services.Configure<CrowdSecOptions>(builder.Configuration.GetSection("CrowdSec"));
+builder.Services.Configure<GeoIpOptions>(builder.Configuration.GetSection("GeoIp"));
+
+// ---- Database (SQLite, app metadata only) ----
+var dbPath = builder.Configuration["Database:Path"]
+             ?? "/var/lib/crowdsec-manager/app.db";
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlite($"Data Source={dbPath}"));
+
+// Make sure the parent dir exists (esp. in dev)
+try
+{
+    var dir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        Directory.CreateDirectory(dir);
+}
+catch { /* ignored - container will mount the volume */ }
+
+// ---- ASP.NET Identity ----
+builder.Services
+    .AddDefaultIdentity<ApplicationUser>(o =>
+    {
+        o.Password.RequireDigit = true;
+        o.Password.RequireUppercase = true;
+        o.Password.RequireNonAlphanumeric = true;
+        o.Password.RequiredLength = 10;
+        o.Lockout.MaxFailedAccessAttempts = 5;
+        o.SignIn.RequireConfirmedAccount = false;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.ConfigureApplicationCookie(o =>
+{
+    o.LoginPath = "/login";
+    o.LogoutPath = "/logout";
+    o.ExpireTimeSpan = TimeSpan.FromHours(8);
+    o.SlidingExpiration = true;
+    o.Cookie.HttpOnly = true;
+    o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+});
+
+// ---- Blazor Server ----
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor(o =>
+{
+    o.DetailedErrors = builder.Environment.IsDevelopment();
+    o.DisconnectedCircuitMaxRetained = 30;
+    o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+});
+
+// ---- SignalR (used by the live threat map) ----
+builder.Services.AddSignalR(o =>
+{
+    o.MaximumReceiveMessageSize = 256 * 1024;
+    o.KeepAliveInterval = TimeSpan.FromSeconds(15);
+}).AddHubOptions<ThreatMapHub>(o =>
+{
+    o.ClientTimeoutInterval = TimeSpan.FromSeconds(45);
+});
+
+// ---- CrowdSec integration services ----
+builder.Services.AddHttpClient<ICrowdSecApiService, CrowdSecApiService>();
+builder.Services.AddSingleton<ICrowdSecCliService, CrowdSecCliService>();
+builder.Services.AddSingleton<IGeoIpService, GeoIpService>();
+builder.Services.AddScoped<IConfigFileService, ConfigFileService>();
+builder.Services.AddHostedService<ThreatFeedService>();
+
+var app = builder.Build();
+
+// ---- Pipeline ----
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler("/error");
+    app.UseHsts();
+}
+
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapBlazorHub();
+app.MapHub<ThreatMapHub>("/hubs/threatmap");
+app.MapGet("/health", () => Results.Ok(new { status = "ok", ts = DateTimeOffset.UtcNow }));
+app.MapFallbackToPage("/_Host");
+app.MapRazorPages();
+
+// ---- DB bootstrap + seed admin ----
+using (var scope = app.Services.CreateScope())
+{
+    var sp = scope.ServiceProvider;
+    try
+    {
+        var db = sp.GetRequiredService<AppDbContext>();
+        db.Database.EnsureCreated();
+        await DbSeeder.SeedAsync(sp);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "DB bootstrap failed");
+    }
+}
+
+app.Run();

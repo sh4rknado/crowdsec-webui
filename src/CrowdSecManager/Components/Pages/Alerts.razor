@@ -1,0 +1,78 @@
+@page "/alerts"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ICrowdSecApiService Api
+@inject ILogger<Alerts> Log
+
+<PageTitle>Alerts &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>Alerts (@_list.Count)</h2>
+        <div class="actions">
+            <label class="inline">Limit
+                <input type="number" min="10" max="1000" step="10" @bind="_limit" />
+            </label>
+            <button class="btn ghost" @onclick="Refresh">Refresh</button>
+        </div>
+    </header>
+
+    @if (_list.Count == 0)
+    {
+        <p class="muted">No alerts recorded.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead>
+                <tr>
+                    <th>ID</th><th>When</th><th>Scenario</th><th>Source</th>
+                    <th>Events</th><th>Decisions</th><th>Message</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in _list)
+                {
+                    <tr>
+                        <td class="num">@a.Id</td>
+                        <td>@(a.CreatedAt == default ? "—" : a.CreatedAt.ToLocalTime().ToString("u"))</td>
+                        <td title="@a.Scenario">@(Truncate(a.Scenario, 50))</td>
+                        <td class="mono">@a.Source</td>
+                        <td class="num">@a.EventsCount</td>
+                        <td class="num">@(a.Decisions?.Count ?? 0)</td>
+                        <td>@Truncate(a.Message, 80)</td>
+                        <td>
+                            <button class="btn mini danger" @onclick="async () => await Delete(a.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private int _limit = 100;
+    private List<CsAlert> _list = new();
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try { _list = (await Api.GetAlertsAsync(_limit)).ToList(); }
+        catch
+        {
+            try { _list = (await Cli.ListAlertsAsync(_limit)).ToList(); }
+            catch (Exception ex) { Log.LogDebug("alerts: {Msg}", ex.Message); }
+        }
+    }
+
+    private async Task Delete(long id)
+    {
+        await Cli.RunAsync("alerts", "delete", id.ToString());
+        await Refresh();
+    }
+
+    private static string? Truncate(string? s, int n)
+        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
+}

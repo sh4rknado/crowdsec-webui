@@ -1,0 +1,25 @@
+# Build artifacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+.dotnet-cli/
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
+app.db
+
+# IDE
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Container
+*.tgz
+backups/
