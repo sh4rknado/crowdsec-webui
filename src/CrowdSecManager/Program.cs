@@ -3,6 +3,7 @@ using CrowdSecManager.Data;
 using CrowdSecManager.Models;
 using CrowdSecManager.Services;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,13 @@ builder.Services.Configure<GeoIpOptions>(builder.Configuration.GetSection("GeoIp
 // ---- Database (SQLite, app metadata only) ----
 var dbPath = builder.Configuration["Database:Path"]
              ?? "/var/lib/crowdsec-manager/app.db";
+var keyDirectory = builder.Configuration["DataProtection:KeysPath"]
+                   ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "keys");
+Directory.CreateDirectory(keyDirectory);
+if (!OperatingSystem.IsWindows())
+    File.SetUnixFileMode(keyDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlite($"Data Source={dbPath}"));
 

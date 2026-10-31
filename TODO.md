@@ -31,12 +31,13 @@
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 19 tests réussis, 0 échoué ; le projet applicatif compile également.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 23 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
 
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
+- [ ] Vérifier la syntaxe du script `deploy/update-image.sh` avec Bash sur Linux ; Bash/WSL n’est pas exécutable dans cet environnement Windows.
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
 - [ ] Tester les versions réelles de `cscli hub list -o json` et les commandes Hub install/remove/upgrade avec les types retournés par la version CrowdSec déployée.
@@ -44,14 +45,17 @@
 - [ ] Tester la connexion, le rôle administrateur, les opérations CRUD et la persistance SQLite en exécution.
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
 - [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide.
-- [ ] Couvrir par tests unitaires la persistance SQLite, l’authentification et le flux de polling `ThreatFeedService`.
+- [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
+- [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication et traitement par fenêtres de 20 alertes.
+- [ ] Tester l’exécution complète du polling `ThreatFeedService` dans l’hôte (récupération LAPI/CLI, cycle périodique et annulation).
+- [x] Persister les clés ASP.NET Data Protection dans le répertoire applicatif afin que les cookies d’authentification survivent au redémarrage ; chemin surchargeable avec `DataProtection__KeysPath`.
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.
 - [ ] Valider sur l’hôte Linux que `crowdsec -t` accepte la configuration de déploiement et présente des erreurs compréhensibles dans l’éditeur.
 - [ ] Vérification locale Windows tentée sur CrowdSec 1.6 : le binaire n’a pas pu lire `local_api_credentials.yaml` ni tourner son log (`Access is denied`), y compris après relance ; ce résultat ne valide pas la configuration.
 - [ ] Tester le rechargement `SIGHUP` sur le conteneur autonome et documenter/valider l’action de reload manuelle en mode side-by-side.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
-- [ ] Compléter les détails de la carte : le flux est interrogé périodiquement (8 s par défaut), la géolocalisation approximative est utilisée sans GeoLite2, et le rendu n’est pas une copie de la Threat Map Check Point.
+- [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
 - [ ] Décider si les fonctions de consultation/édition supplémentaires de `cscli` (AppSec, allowlists, simulation, machines, credentials, etc.) entrent dans le périmètre produit ; elles ne sont pas toutes exposées dans l’interface.
 
 ## Comparaison avec CrowdSec officiel

@@ -360,6 +360,7 @@ what you need.
 | `CrowdSec__HubRefreshSeconds` | `300` | Hub list cache TTL |
 | `GeoIp__DatabasePath` | `/var/lib/GeoIP/GeoLite2-City.mmdb` | MaxMind DB path |
 | `Database__Path` | `/var/lib/crowdsec-manager/app.db` | App SQLite DB |
+| `DataProtection__KeysPath` | `<database directory>/keys` | Persistent ASP.NET cookie encryption keys |
 | `ThreatFeed__PollIntervalSeconds` | `8` | LAPI poll interval |
 | `ThreatFeed__MaxActiveArcs` | `60` | Max concurrent arcs on the map |
 
@@ -375,6 +376,8 @@ CROWDSEC_BOUNCER_APIKEY=...
 ```
 
 Then uncomment the `EnvironmentFile=` line in `crowdsec-manager.container`.
+The Data Protection key directory is restricted to the service account on
+Linux; protect the containing host volume accordingly.
 
 ---
 

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace CrowdSecManager.Services;
 
 /// <summary>Background service that polls CrowdSec (alerts/decisions via LAPI),
-/// geolocates new attacker IPs and pushes live events to the threat-map hub.</summary>
+/// geolocates new attacker IPs and publishes events to the threat-map event bus.</summary>
 public sealed class ThreatFeedService : BackgroundService
 {
     private readonly IServiceProvider _sp;
@@ -72,35 +72,7 @@ public sealed class ThreatFeedService : BackgroundService
         var alerts = await scope.ServiceProvider.GetRequiredService<ICrowdSecCliService>()
             .ListAlertsAsync(100, ct);
         var decisions = await api.GetDecisionsAsync(ct);
-        var stats = BuildStats(alerts, decisions);
-
-        var fresh = alerts
-            .OrderBy(a => a.CreatedAt)
-            .Where(a => !_seenAlerts.ContainsKey(a.Id))
-            .Take(20)
-            .Where(a => _seenAlerts.TryAdd(a.Id, 0))
-            .ToList();
-
-        foreach (var a in fresh)
-        {
-            var ev = ToThreatEvent(a);
-            if (ev is null) continue;
-
-            await PersistHistoryAsync(db, ev, ct);
-
-            // Evict oldest if cap reached
-            while (_recent.Count >= Math.Max(1, _opt.MaxActiveArcs))
-            {
-                var oldest = _recent.OrderBy(x => x.Value.CreatedAt).FirstOrDefault();
-                if (oldest.Key is null || !_recent.TryRemove(oldest.Key, out _)) break;
-            }
-            _recent[ev.Id] = ev;
-
-            _events.PublishThreat(ev, stats);
-        }
-
-        if (fresh.Count > 0 || stats.TotalAlerts > 0)
-            _events.PublishStats(stats);
+        await ProcessBatchAsync(alerts, decisions, db, ct);
     }
 
     private async Task PollViaCliAsync(IServiceScope scope, AppDbContext db, CancellationToken ct)
@@ -108,6 +80,12 @@ public sealed class ThreatFeedService : BackgroundService
         var cli = scope.ServiceProvider.GetRequiredService<ICrowdSecCliService>();
         var alerts = await cli.ListAlertsAsync(100, ct);
         var decisions = await cli.ListDecisionsAsync(ct);
+        await ProcessBatchAsync(alerts, decisions, db, ct);
+    }
+
+    internal async Task ProcessBatchAsync(IReadOnlyList<CsAlert> alerts,
+        IReadOnlyList<CsDecision> decisions, AppDbContext db, CancellationToken ct = default)
+    {
         var stats = BuildStats(alerts, decisions);
 
         var fresh = alerts
@@ -122,11 +100,18 @@ public sealed class ThreatFeedService : BackgroundService
             var ev = ToThreatEvent(a);
             if (ev is null) continue;
             await PersistHistoryAsync(db, ev, ct);
+
+            while (_recent.Count >= Math.Max(1, _opt.MaxActiveArcs))
+            {
+                var oldest = _recent.OrderBy(x => x.Value.CreatedAt).FirstOrDefault();
+                if (oldest.Key is null || !_recent.TryRemove(oldest.Key, out _)) break;
+            }
             _recent[ev.Id] = ev;
             _events.PublishThreat(ev, stats);
         }
 
-        _events.PublishStats(stats);
+        if (fresh.Count > 0 || stats.TotalAlerts > 0)
+            _events.PublishStats(stats);
     }
 
     private static ThreatMapStats BuildStats(IReadOnlyList<CsAlert> alerts, IReadOnlyList<CsDecision> decisions)
