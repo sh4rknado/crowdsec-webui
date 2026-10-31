@@ -27,6 +27,7 @@
 - [x] Ajout de décision choisit `--range` pour une valeur CIDR et `--ip` pour une IP seule.
 - [x] La carte ne marque plus comme traitées les alertes qui dépassent la limite de 20 événements d’un cycle.
 - [x] La carte met en tampon les événements reçus durant l’initialisation JavaScript puis les réconcilie au snapshot sans perdre ni doubler les alertes.
+- [x] La carte borne ses marqueurs source à 300 IP, expire les sources après 60 s, crée une seule ripple d’impact par arc et actualise le compteur quand les arcs expirent.
 - [x] Le fallback GeoIP produit des coordonnées stables entre redémarrages ; la normalisation préserve IPv6 et reconnaît les plages IPv6 privées/locales.
 
 ## Vérifié dans cet environnement
@@ -36,6 +37,7 @@
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
 - [x] `dotnet test src/CrowdSecManager.sln -c Release` : 84 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 84 tests.
+- [x] Tests JavaScript du renderer exécutés dans le runtime Node de la session : 3 assertions passent sur le plafond/LRU des sources, leur expiration et le compteur/ripple des arcs (`tests/javascript/threatmap.test.mjs`).
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement

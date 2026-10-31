@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const scriptPath = fileURLToPath(new URL("../../src/CrowdSecManager/wwwroot/js/threatmap.js", import.meta.url));
+const threatMapSource = readFileSync(scriptPath, "utf8");
+
+function createHarness() {
+    const clock = { now: 1000, performance: 0 };
+    const maps = [];
+    const frames = [];
+    const counter = { textContent: "0" };
+    const ctx = new Proxy({
+        setTransform() {}, fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {},
+        stroke() {}, fill() {}, closePath() {}, fillText() {}, impactRings: 0,
+        arc() {
+            if (this.strokeStyle?.startsWith("rgba(255, 120, 80")) this.impactRings++;
+        }
+    }, { set(target, key, value) { target[key] = value; return true; } });
+    const canvas = {
+        width: 1200,
+        height: 600,
+        style: {},
+        getContext: () => ctx,
+        getBoundingClientRect: () => ({ width: 1200, height: 600 })
+    };
+    class ObservedMap extends Map {
+        constructor(...args) { super(...args); maps.push(this); }
+    }
+    class FakeDate extends Date {
+        static now() { return clock.now; }
+    }
+    const document = {
+        getElementById(id) {
+            if (id === "threatCanvas") return canvas;
+            if (id === "threatCount") return counter;
+            return null;
+        }
+    };
+    const window = {
+        devicePixelRatio: 1,
+        addEventListener() {},
+        removeEventListener() {}
+    };
+    const sandbox = {
+        window,
+        document,
+        Map: ObservedMap,
+        Date: FakeDate,
+        performance: { now: () => clock.performance },
+        requestAnimationFrame: callback => { frames.push(callback); return frames.length; },
+        cancelAnimationFrame() {},
+        fetch: async () => { throw new Error("offline test fixture"); },
+        console: { warn() {}, log() {}, error() {} }
+    };
+    vm.runInNewContext(threatMapSource, sandbox, { filename: "threatmap.js" });
+    return { api: window.threatMap, clock, maps, frames, counter, ctx };
+}
+
+async function sourceMarkersStayBounded() {
+    const { api, maps } = createHarness();
+
+    for (let i = 0; i < 1000; i++) {
+        api.plotThreat({ sourceIp: `203.0.113.${i}`, source: { latitude: 10, longitude: 20 } });
+    }
+
+    assert.equal(maps[0].size, 300);
+    assert.equal(maps[0].has("203.0.113.0"), false);
+    assert.equal(maps[0].has("203.0.113.999"), true);
+}
+test("source markers stay bounded and evict the least recently seen IP", sourceMarkersStayBounded);
+
+async function expiredStateIsRemoved() {
+    const { api, clock, frames, maps, counter } = createHarness();
+    await api.init("threatCanvas", {});
+    api.plotThreat({
+        sourceIp: "203.0.113.8",
+        source: { latitude: 10, longitude: 20 },
+        severity: "High"
+    });
+
+    assert.equal(counter.textContent, "1");
+    clock.performance = 4000;
+    clock.now = 62_000;
+    frames.at(-1)(clock.performance);
+
+    assert.equal(counter.textContent, "0");
+    assert.equal(maps[0].size, 0);
+}
+test("expired source markers are removed and expired arcs update the active counter", expiredStateIsRemoved);
+
+async function eachArcCreatesOneImpactRipple() {
+    const { api, clock, frames, ctx } = createHarness();
+    await api.init("threatCanvas", {});
+    api.plotThreat({ sourceIp: "203.0.113.9", source: { latitude: 0, longitude: 20 }, severity: "High" });
+    for (const time of [2300, 2400, 2500, 2600, 2700]) {
+        clock.performance = time;
+        frames.at(-1)(time);
+    }
+    assert.equal(ctx.impactRings, 5);
+}
+test("each animated arc creates at most one impact ripple", eachArcCreatesOneImpactRipple);
+
+export async function runThreatMapAssertions() {
+    await sourceMarkersStayBounded();
+    await expiredStateIsRemoved();
+    await eachArcCreatesOneImpactRipple();
+    return "3 threat map JavaScript assertions passed";
+}

@@ -29,6 +29,8 @@
     let lastFrame = 0;
     const ARC_DURATION_MS = 3200;
     const MAX_ARCS = 60;
+    const MAX_SOURCES = 300;
+    const SOURCE_RETENTION_MS = 60_000;
 
     // ---- Equirectangular projection ----
     function project(lat, lon) {
@@ -209,6 +211,11 @@
 
         const key = ev.sourceIp || (ev.source.latitude + "_" + ev.source.longitude);
         const cur = sources.get(key) || { x: src.x, y: src.y, count: 0, lastSeen: 0 };
+        sources.delete(key); // Refresh insertion order so the oldest entry is least recently seen.
+        if (sources.size >= MAX_SOURCES) {
+            const oldestKey = sources.keys().next().value;
+            if (oldestKey !== undefined) sources.delete(oldestKey);
+        }
         cur.count++; cur.lastSeen = Date.now();
         cur.x = src.x; cur.y = src.y;
         sources.set(key, cur);
@@ -217,6 +224,7 @@
             sx: src.x, sy: src.y,
             dx: dst.x, dy: dst.y,
             start: performance.now(),
+            rippled: false,
             sev: ev.severity || "Info",
             ip: ev.sourceIp,
             scenario: ev.scenario,
@@ -271,8 +279,9 @@
             }
 
             // Impact ripple near destination
-            if (p > 0.7 && p < 1) {
+            if (p > 0.7 && p < 1 && !a.rippled) {
                 ripples.push({ x: a.dx, y: a.dy, start: now, color: severityColor(a.sev, 0.8) });
+                a.rippled = true;
             }
         }
 
@@ -290,9 +299,13 @@
     }
 
     function drawSources() {
-        for (const [, s] of sources) {
-            const age = (Date.now() - s.lastSeen) / 1000;
-            if (age > 60) continue;
+        for (const [key, s] of sources) {
+            const ageMs = Date.now() - s.lastSeen;
+            if (ageMs > SOURCE_RETENTION_MS) {
+                sources.delete(key);
+                continue;
+            }
+            const age = ageMs / 1000;
             const alpha = Math.max(0, 1 - age / 60);
             ctx.fillStyle = "rgba(255, 100, 100, " + (alpha * 0.6) + ")";
             ctx.beginPath();
@@ -307,6 +320,8 @@
         drawWorld();
         drawSources();
         drawArcs(t);
+        const counter = document.getElementById("threatCount");
+        if (counter) counter.textContent = String(arcs.length);
         drawHome();
         animId = requestAnimationFrame(frame);
     }
