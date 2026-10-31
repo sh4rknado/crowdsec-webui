@@ -52,6 +52,27 @@ public sealed class CrowdSecCommandBuilderTests
         Assert.Equal(new[] { "collections", "upgrade", "crowdsecurity/nginx" }, args);
     }
 
+    [Theory]
+    [InlineData("collection", "collections")]
+    [InlineData("parser", "parsers")]
+    [InlineData("scenario", "scenarios")]
+    [InlineData("postoverflow", "postoverflows")]
+    [InlineData("appsec-rules", "appsec-rules")]
+    [InlineData("appsec-configs", "appsec-configs")]
+    [InlineData("contexts", "contexts")]
+    public void HubMutationCommandsUseSupportedTypeCommand(string inputType, string commandType)
+    {
+        Assert.Equal(new[] { commandType, "install", "vendor/item" }, CrowdSecCommandBuilder.InstallItem(inputType, "vendor/item"));
+        Assert.Equal(new[] { commandType, "remove", "vendor/item" }, CrowdSecCommandBuilder.RemoveItem(inputType, "vendor/item"));
+        Assert.Equal(new[] { commandType, "upgrade", "vendor/item" }, CrowdSecCommandBuilder.UpgradeItem(inputType, "vendor/item"));
+    }
+
+    [Fact]
+    public void DeleteAlert_UsesAlertIdFlag()
+    {
+        Assert.Equal(new[] { "alerts", "delete", "--id", "12" }, CrowdSecCommandBuilder.DeleteAlert(12));
+    }
+
     [Fact]
     public void ReloadSignalTargetsOnlyTheCrowdSecProcess()
     {

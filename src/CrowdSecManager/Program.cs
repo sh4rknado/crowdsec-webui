@@ -78,6 +78,7 @@ builder.Services.AddSignalR(o =>
 
 // ---- CrowdSec integration services ----
 builder.Services.AddHttpClient<ICrowdSecApiService, CrowdSecApiService>();
+builder.Services.AddSingleton<ICrowdSecProcessRunner, CrowdSecProcessRunner>();
 builder.Services.AddSingleton<ICrowdSecCliService, CrowdSecCliService>();
 builder.Services.AddSingleton<IGeoIpService, GeoIpService>();
 builder.Services.AddSingleton<IThreatMapEventBus, ThreatMapEventBus>();

@@ -31,24 +31,29 @@
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 24 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 41 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
 
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
-- [ ] Vérifier la syntaxe du script `deploy/update-image.sh` avec Bash sur Linux ; Bash/WSL n’est pas exécutable dans cet environnement Windows.
+- [x] Vérifier la syntaxe de `deploy/update-image.sh` avec Bash (`bash -n`) ; le script n’a pas été exécuté car Podman/systemd ne sont pas présents ici.
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
 - [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
 - [x] Vérifier avec CrowdSec 1.6 installé que `cscli hub list -a -o json` retourne un objet de groupes (`collections`, `parsers`, etc.) ; le parseur de l’application a été adapté et testé contre cette structure.
 - [ ] Tester les routes `/health` et `/v1/decisions` avec une vraie clé bouncer et vérifier la lecture de décisions.
-- [ ] Tester la connexion, le rôle administrateur, les opérations CRUD et la persistance SQLite en exécution.
+- [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête Bearer et repli cscli quand l’API échoue.
+- [x] Tester la génération des commandes cscli Hub pour collections, parsers, scénarios, postoverflows, AppSec et contexts ; tester aussi la suppression d’alerte par ID.
+- [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
+- [ ] Tester les parcours login/logout et l’accès aux pages authentifiées via HTTP sur l’hôte de déploiement (l’accès réseau local est bloqué dans cet environnement).
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
 - [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide.
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
+- [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
 - [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication et traitement par fenêtres de 20 alertes.
-- [ ] Tester l’exécution complète du polling `ThreatFeedService` dans l’hôte (récupération LAPI/CLI, cycle périodique et annulation).
+- [x] Tester `PollOnceAsync` de `ThreatFeedService` sur les branches LAPI et fallback CLI, avec persistance et annulation.
+- [ ] Vérifier en environnement d’hôte le cycle périodique du `ThreatFeedService` avec LAPI/CLI réellement actifs.
 - [x] Persister les clés ASP.NET Data Protection dans le répertoire applicatif afin que les cookies d’authentification survivent au redémarrage ; chemin surchargeable avec `DataProtection__KeysPath`.
 - [x] Corriger l’URL de développement documentée : HTTP `localhost:57938` en local, `8081` dans le conteneur.
 - [x] Ajouter une procédure reproductible de mise à jour du moteur CrowdSec via reconstruction de l’image et redémarrage Quadlet ; l’application Web ne remplace pas la mise à jour privilégiée de l’hôte.

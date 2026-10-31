@@ -64,7 +64,7 @@
 
     private async Task Delete(long id)
     {
-        var result = await Cli.RunAsync("alerts", "delete", "--id", id.ToString());
+        var result = await Cli.RunAsync(CrowdSecCommandBuilder.DeleteAlert(id));
         if (!result.Success) Log.LogWarning("Could not delete alert {Id}: {Error}", id, result.FlattenError());
         await Refresh();
     }

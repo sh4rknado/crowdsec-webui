@@ -37,6 +37,14 @@ public sealed class IdentityAndPersistenceTests
         Assert.Equal(87, saved.AlertId);
         Assert.Equal("203.0.113.15", saved.SourceIp);
         Assert.Equal("High", saved.Severity);
+
+        saved.Severity = "Medium";
+        await reopened.SaveChangesAsync();
+        Assert.Equal("Medium", await reopened.ThreatHistory.Select(x => x.Severity).SingleAsync());
+
+        reopened.ThreatHistory.Remove(saved);
+        await reopened.SaveChangesAsync();
+        Assert.Empty(await reopened.ThreatHistory.ToListAsync());
     }
 
     [Fact]

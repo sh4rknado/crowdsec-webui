@@ -30,15 +30,67 @@ public interface ICrowdSecCliService
     Task<CliResult> ValidateEngineConfigAsync(CancellationToken ct = default);
 }
 
+public interface ICrowdSecProcessRunner
+{
+    Task<CliResult> ExecuteAsync(ProcessStartInfo startInfo, int timeoutSeconds, CancellationToken ct = default);
+}
+
+public sealed class CrowdSecProcessRunner : ICrowdSecProcessRunner
+{
+    public async Task<CliResult> ExecuteAsync(ProcessStartInfo startInfo, int timeoutSeconds,
+        CancellationToken ct = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        using var process = new Process { StartInfo = startInfo };
+        try
+        {
+            if (!process.Start())
+                return new CliResult { ExitCode = -1, Stderr = "Failed to start cscli", Duration = stopwatch.Elapsed };
+        }
+        catch (Exception ex)
+        {
+            return new CliResult
+            {
+                ExitCode = -1,
+                Stderr = $"Failed to start cscli: {ex.Message}",
+                Duration = stopwatch.Elapsed
+            };
+        }
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds > 0 ? timeoutSeconds : 120));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            var message = ct.IsCancellationRequested ? "cscli command cancelled." : "cscli timed out.";
+            return new CliResult { ExitCode = -1, Stderr = message, Duration = stopwatch.Elapsed };
+        }
+
+        return new CliResult
+        {
+            ExitCode = process.ExitCode,
+            Stdout = await stdoutTask,
+            Stderr = await stderrTask,
+            Duration = stopwatch.Elapsed
+        };
+    }
+}
+
 public sealed class CrowdSecCliService : ICrowdSecCliService
 {
     private readonly CrowdSecOptions _opt;
     private readonly ILogger<CrowdSecCliService> _log;
+    private readonly ICrowdSecProcessRunner _processRunner;
 
-    public CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<CrowdSecCliService> log)
+    public CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<CrowdSecCliService> log,
+        ICrowdSecProcessRunner processRunner)
     {
         _opt = opt.Value;
         _log = log;
+        _processRunner = processRunner;
     }
 
     public Task<CliResult> RunAsync(params string[] args) => RunAsync((IEnumerable<string>)args);
@@ -71,42 +123,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
             psi.ArgumentList.Add("json");
         }
 
-        var sw = Stopwatch.StartNew();
-        using var p = new Process { StartInfo = psi };
-
-        if (!p.Start())
-        {
-            return new CliResult { ExitCode = -1, Stderr = "Failed to start cscli", Duration = sw.Elapsed };
-        }
-
-        var stdoutTask = p.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = p.StandardError.ReadToEndAsync(ct);
-
-        var timeoutMs = (_opt.CommandTimeoutSeconds > 0 ? _opt.CommandTimeoutSeconds : 120) * 1000;
-        var exited = p.WaitForExit(timeoutMs);
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-
-        if (!exited)
-        {
-            try { p.Kill(true); } catch { }
-            return new CliResult
-            {
-                ExitCode = -1,
-                Stdout = stdout,
-                Stderr = (stderr + "\n[cscli timed out]").Trim(),
-                Duration = sw.Elapsed
-            };
-        }
-
-        return new CliResult
-        {
-            ExitCode = p.ExitCode,
-            Stdout = stdout,
-            Stderr = stderr,
-            Duration = sw.Elapsed
-        };
+        return await _processRunner.ExecuteAsync(psi, _opt.CommandTimeoutSeconds, ct);
     }
 
     public async Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default)
@@ -162,14 +179,12 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 
     public Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default)
     {
-        type = NormalizeItemType(type);
-        return RunAsync(new[] { type, "install", name }, ct);
+        return RunAsync(CrowdSecCommandBuilder.InstallItem(type, name), ct);
     }
 
     public Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default)
     {
-        type = NormalizeItemType(type);
-        return RunAsync(new[] { type, "remove", name }, ct);
+        return RunAsync(CrowdSecCommandBuilder.RemoveItem(type, name), ct);
     }
 
     public async Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit = 100, CancellationToken ct = default)
@@ -324,15 +339,6 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         }
     }
 
-    private static string NormalizeItemType(string type) => type.ToLowerInvariant() switch
-    {
-        "collection" or "collections" => "collections",
-        "parser" or "parsers" => "parsers",
-        "scenario" or "scenarios" => "scenarios",
-        "postoverflow" or "postoverflows" => "postoverflows",
-        _ => type
-    };
-
     private static readonly HashSet<string> JsonCommands = new(StringComparer.OrdinalIgnoreCase)
     {
         "hub", "alerts", "decisions", "bouncers", "machines", "metrics", "config"
@@ -357,6 +363,15 @@ public static class CrowdSecCommandBuilder
 
     public static IReadOnlyList<string> UpgradeItem(string type, string name)
         => new[] { NormalizeItemType(type), "upgrade", name };
+
+    public static IReadOnlyList<string> InstallItem(string type, string name)
+        => new[] { NormalizeItemType(type), "install", name };
+
+    public static IReadOnlyList<string> RemoveItem(string type, string name)
+        => new[] { NormalizeItemType(type), "remove", name };
+
+    public static IReadOnlyList<string> DeleteAlert(long id)
+        => new[] { "alerts", "delete", "--id", id.ToString() };
 
     public static IReadOnlyList<string> AddDecision(string ipOrRange, string duration,
         string? reason, string type)

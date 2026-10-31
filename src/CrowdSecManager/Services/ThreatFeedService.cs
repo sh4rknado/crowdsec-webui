@@ -54,7 +54,7 @@ public sealed class ThreatFeedService : BackgroundService
         _log.LogInformation("ThreatFeedService stopped");
     }
 
-    private async Task PollOnceAsync(CancellationToken ct)
+    internal async Task PollOnceAsync(CancellationToken ct)
     {
         using var scope = _sp.CreateScope();
         var api = scope.ServiceProvider.GetRequiredService<ICrowdSecApiService>();
