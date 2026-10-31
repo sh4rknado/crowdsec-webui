@@ -67,4 +67,30 @@ public sealed class CrowdSecCommandBuilderTests
 
         Assert.Equal(new[] { "-t", "-c", Path.Combine("/etc/crowdsec", "config.yaml") }, args);
     }
+
+    [Fact]
+    public void HubParser_FlattensCategoryGroupsAndDerivesInstallState()
+    {
+        const string json = """
+            {
+              "collections": [
+                { "name": "crowdsecurity/nginx", "local_version": "1.2", "local_path": "/etc/crowdsec/collections/nginx.yaml", "description": "nginx", "status": "enabled" },
+                { "name": "crowdsecurity/apache", "local_version": "", "local_path": "", "description": "apache", "status": "disabled,update-available" },
+                { "name": "crowdsecurity/custom", "local_version": "0.1", "local_path": "/etc/crowdsec/collections/custom.yaml", "description": "custom", "status": "enabled,tainted,update-available" }
+              ],
+              "appsec-rules": [
+                { "name": "crowdsecurity/base", "local_version": "", "local_path": "", "description": "base", "status": "disabled,update-available" }
+              ]
+            }
+            """;
+
+        var items = CrowdSecHubParser.Parse(json);
+
+        Assert.Equal(4, items.Count);
+        Assert.Collection(items,
+            item => { Assert.Equal("collections", item.Type); Assert.True(item.Installed); Assert.True(item.UpToDate); },
+            item => { Assert.Equal("collections", item.Type); Assert.False(item.Installed); Assert.False(item.UpToDate); },
+            item => { Assert.Equal("collections", item.Type); Assert.True(item.Installed); Assert.True(item.Tainted); Assert.False(item.UpToDate); },
+            item => { Assert.Equal("appsec-rules", item.Type); Assert.False(item.Installed); });
+    }
 }

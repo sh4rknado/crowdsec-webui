@@ -134,9 +134,20 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         }
     }
 
-    public Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default)
-        => RunJsonAsync<List<CsHubItem>>(new[] { "hub", "list" }, ct)
-            .ContinueWith(t => (IReadOnlyList<CsHubItem>)(t.Result ?? new List<CsHubItem>()), ct);
+    public async Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default)
+    {
+        // -a includes available as well as installed Hub items, allowing the UI
+        // to offer install actions. CrowdSec JSON is grouped by type, not a list.
+        var result = await RunAsync(new[] { "hub", "list", "-a" }, ct);
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Stdout)) return Array.Empty<CsHubItem>();
+
+        try { return CrowdSecHubParser.Parse(result.Stdout); }
+        catch (JsonException ex)
+        {
+            _log.LogError(ex, "Could not parse cscli Hub JSON output");
+            return Array.Empty<CsHubItem>();
+        }
+    }
 
     public Task<CliResult> HubUpdateAsync(CancellationToken ct = default)
         => RunAsync(new[] { "hub", "update" }, ct);
@@ -378,4 +389,41 @@ public static class CrowdSecCommandBuilder
         "postoverflow" or "postoverflows" => "postoverflows",
         _ => type
     };
+}
+
+/// <summary>Parses the category-grouped object returned by <c>cscli hub list -o json</c>.</summary>
+public static class CrowdSecHubParser
+{
+    private static readonly JsonSerializerOptions HubJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+
+    public static IReadOnlyList<CsHubItem> Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new JsonException("Expected a JSON object grouped by Hub item type.");
+
+        var items = new List<CsHubItem>();
+        foreach (var group in document.RootElement.EnumerateObject())
+        {
+            if (group.Value.ValueKind != JsonValueKind.Array) continue;
+            foreach (var element in group.Value.EnumerateArray())
+            {
+                var item = element.Deserialize<CsHubItem>(HubJsonOptions);
+                if (item is null) continue;
+                item.Type = group.Name;
+                item.Status ??= "";
+                item.Installed = !string.IsNullOrWhiteSpace(item.LocalVersion);
+                item.Tainted = item.Status.Contains("tainted", StringComparison.OrdinalIgnoreCase);
+                item.UpToDate = item.Installed
+                    && !item.Status.Contains("update-available", StringComparison.OrdinalIgnoreCase);
+                items.Add(item);
+            }
+        }
+
+        return items;
+    }
 }

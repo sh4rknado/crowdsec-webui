@@ -23,7 +23,7 @@
 
 <section class="card">
     <header>
-        <h2>Installed items (@_items.Count)</h2>
+            <h2>Hub items (@_items.Count)</h2>
         <div class="actions">
             <label class="inline">Filter
                 <input type="text" @bind="_filter" placeholder="name, type..." />
@@ -39,7 +39,7 @@
     {
         <table class="data">
             <thead>
-                <tr><th>Name</th><th>Type</th><th>Local version</th><th>Latest</th><th>State</th><th>Description</th><th></th></tr>
+                <tr><th>Name</th><th>Type</th><th>Local version</th><th>State</th><th>Description</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var it in Filtered)
@@ -48,11 +48,10 @@
                         <td class="mono">@it.Name</td>
                         <td>@it.Type</td>
                         <td>@(it.LocalVersion ?? "—")</td>
-                        <td>@(it.LatestVersion ?? "—")</td>
                         <td>
                             @if (it.Tainted) { <span class="badge warn">tainted</span> }
-                            else if (!it.UpToDate) { <span class="badge err">outdated</span> }
-                            else if (it.Installed) { <span class="badge ok">up-to-date</span> }
+                            else if (it.Installed && !it.UpToDate) { <span class="badge err">outdated</span> }
+                            else if (it.Installed) { <span class="badge ok">@it.Status</span> }
                             else { <span class="badge">available</span> }
                         </td>
                         <td>@Truncate(it.Description, 80)</td>

@@ -88,6 +88,7 @@ public sealed class CsHubItem
     public string? Type { get; set; }
     public string? LocalHash { get; set; }
     public string? LocalHubItem { get; set; }
+    public string? Status { get; set; }
     public bool Tainted { get; set; }
     public bool Installed { get; set; }
     public bool UpToDate { get; set; }

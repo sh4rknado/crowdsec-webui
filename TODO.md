@@ -31,7 +31,7 @@
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 23 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 24 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -40,7 +40,8 @@
 - [ ] Vérifier la syntaxe du script `deploy/update-image.sh` avec Bash sur Linux ; Bash/WSL n’est pas exécutable dans cet environnement Windows.
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
-- [ ] Tester les versions réelles de `cscli hub list -o json` et les commandes Hub install/remove/upgrade avec les types retournés par la version CrowdSec déployée.
+- [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
+- [x] Vérifier avec CrowdSec 1.6 installé que `cscli hub list -a -o json` retourne un objet de groupes (`collections`, `parsers`, etc.) ; le parseur de l’application a été adapté et testé contre cette structure.
 - [ ] Tester les routes `/health` et `/v1/decisions` avec une vraie clé bouncer et vérifier la lecture de décisions.
 - [ ] Tester la connexion, le rôle administrateur, les opérations CRUD et la persistance SQLite en exécution.
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
@@ -56,7 +57,7 @@
 - [ ] Tester le rechargement `SIGHUP` sur le conteneur autonome et documenter/valider l’action de reload manuelle en mode side-by-side.
 - [x] Fermer le hub SignalR `/hubs/threatmap` anonyme ; la carte reçoit les événements via un bus interne et les circuits Blazor authentifiés.
 - [x] Documenter le fonctionnement et les limites de la carte : interrogation périodique (8 s par défaut), géolocalisation approximative sans GeoLite2 et rendu original inspiré des cartes SOC.
-- [ ] Décider si les fonctions de consultation/édition supplémentaires de `cscli` (AppSec, allowlists, simulation, machines, credentials, etc.) entrent dans le périmètre produit ; elles ne sont pas toutes exposées dans l’interface.
+- [x] Auditer les commandes `cscli` supplémentaires : AppSec, allowlists, simulation et gestion des credentials ne sont pas exposées. Elles sont conservées comme pistes de backlog; la portée demandée ici reste Hub, configuration YAML, décisions IP et carte des menaces.
 
 ## Comparaison avec CrowdSec officiel
 
@@ -64,8 +65,9 @@ La référence CrowdSec distingue les opérations `cscli` locales, l’API LAPI 
 
 | Besoin | État constaté |
 | --- | --- |
-| Actualiser l’index Hub (`cscli hub update`) | Implémenté ; reste à valider sur CrowdSec réel. |
-| Installer/supprimer et mettre à niveau les collections, parsers, scénarios et postoverflows | Implémenté via `cscli`; test runtime restant. |
+| Lister les configurations installées et disponibles (`cscli hub list -a -o json`) | Implémenté ; format groupé testé avec la sortie réelle de CrowdSec 1.6. |
+| Actualiser l’index Hub (`cscli hub update`) | Implémenté ; reste à valider sur une instance CrowdSec Linux de déploiement. |
+| Installer/supprimer et mettre à niveau les collections, parsers, scénarios et postoverflows | Implémenté via `cscli`; exécution des opérations en runtime reste à valider. |
 | Mise à jour du moteur CrowdSec lui-même | Script d’hôte qui tire la base officielle, reconstruit l’image et redémarre Quadlet ; exécution Linux à valider. |
 | Éditer le YAML | Implémenté pour les fichiers YAML des chemins configurés ; écriture atomique, validation syntaxique, vérification optionnelle avec `crowdsec -t` et avertissement Hub. Exécution avec moteur réel à valider. |
 | Ajouter/supprimer une décision IP | Implémenté via `cscli`; suppression par ID et CIDR corrigés, test runtime restant. |
