@@ -42,6 +42,8 @@
 
 ## À faire ou à valider en environnement de déploiement
 
+État des outils vérifié localement le 31 octobre 2026 : l’environnement est Windows ; les binaires CrowdSec/Cscli installés annoncent `v1.6.0-4b8e6cd7`. `cscli lapi status` échoue avant la connexion car Windows refuse l’accès à `C:\ProgramData\CrowdSec\config\local_api_credentials.yaml`. Podman, Docker et systemd sont absents ; WSL renvoie `Wsl/E_ACCESSDENIED`. Les vérifications Linux/LAPI ci-dessous restent donc ouvertes.
+
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
 - [x] Vérifier la syntaxe Bash (`bash -n`) des trois scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh` et `deploy/entrypoint.sh` avec Git Bash ; Podman/systemd restent absents ici.
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
