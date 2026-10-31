@@ -30,6 +30,7 @@
 ## Vérifié dans cet environnement
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
+- [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
 - [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 48 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
