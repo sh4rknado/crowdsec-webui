@@ -1,0 +1,27 @@
+@page "/logout"
+@model LogoutModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign out - CrowdSec Manager</title>
+    <link rel="stylesheet" href="~/css/soc.css" />
+</head>
+<body class="soc">
+    <div class="login-wrap">
+        <section class="login-card">
+            <h1>Sign out</h1>
+            <p class="muted">End this CrowdSec Manager session?</p>
+            <form method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit">Sign out</button>
+            </form>
+            <p><a href="/">Cancel</a></p>
+        </section>
+    </div>
+</body>
+</html>

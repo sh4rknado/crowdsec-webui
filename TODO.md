@@ -59,7 +59,7 @@
 - [x] Valider les cibles de décision avant `cscli` : IPv4 décimale à quatre octets, IPv6 sans zone, CIDR et préfixes bornés ; les formes IPv4 abrégées/hexadécimales/octales sont rejetées et une cible invalide ne lance pas de processus.
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
 - [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
-- [x] Tester l’émission du cookie Identity, son accès à `/decisions`, le rejet d’un mot de passe erroné et l’expiration du cookie à la déconnexion.
+- [x] Tester par HTTP les pages Razor de connexion/déconnexion avec TestServer : jeton antiforgery, mot de passe erroné puis valide, émission et usage du cookie Identity sur `/decisions`, puis expiration à la déconnexion.
 - [ ] Tester les actions interactives login/logout et le cookie d’authentification dans un navigateur sur l’hôte de déploiement.
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
 - [x] Tester localement le backup `.tgz` avec YAML imbriqué et la protection Load/Save contre un junction/lien symbolique qui sort de la whitelist.
