@@ -19,6 +19,7 @@ public sealed class ThreatFeedService : BackgroundService
 
     private readonly ConcurrentDictionary<string, ThreatEvent> _recent = new();
     private readonly ConcurrentDictionary<long, byte> _seenAlerts = new();
+    private readonly ConcurrentDictionary<long, ThreatHistoryEntry> _pendingHistory = new();
     private readonly object _historyLock = new();
     private readonly SemaphoreSlim _seenAlertInitialization = new(1, 1);
     private bool _seenAlertsInitialized;
@@ -89,6 +90,7 @@ public sealed class ThreatFeedService : BackgroundService
         IReadOnlyList<CsDecision> decisions, AppDbContext db, CancellationToken ct = default)
     {
         await InitializeSeenAlertsAsync(db, ct);
+        await RetryPendingHistoryAsync(db, ct);
         var stats = BuildStats(alerts, decisions);
 
         var fresh = alerts
@@ -102,7 +104,8 @@ public sealed class ThreatFeedService : BackgroundService
         {
             var ev = ToThreatEvent(a);
             if (ev is null) continue;
-            await PersistHistoryAsync(db, ev, ct);
+            if (!await PersistHistoryAsync(db, ev, ct))
+                _pendingHistory[ev.AlertId] = ToHistoryEntry(ev);
 
             while (_recent.Count >= Math.Max(1, _opt.MaxActiveArcs))
             {
@@ -114,6 +117,15 @@ public sealed class ThreatFeedService : BackgroundService
         }
 
         _events.PublishStats(stats);
+    }
+
+    private async Task RetryPendingHistoryAsync(AppDbContext db, CancellationToken ct)
+    {
+        foreach (var entry in _pendingHistory.Values)
+        {
+            if (await PersistHistoryEntryAsync(db, entry, ct))
+                _pendingHistory.TryRemove(entry.AlertId, out _);
+        }
     }
 
     private async Task InitializeSeenAlertsAsync(AppDbContext db, CancellationToken ct)
@@ -210,27 +222,30 @@ public sealed class ThreatFeedService : BackgroundService
         return ThreatSeverity.Info;
     }
 
-    private async Task PersistHistoryAsync(AppDbContext db, ThreatEvent ev, CancellationToken ct)
+    private Task<bool> PersistHistoryAsync(AppDbContext db, ThreatEvent ev, CancellationToken ct)
+        => PersistHistoryEntryAsync(db, ToHistoryEntry(ev), ct);
+
+    private static ThreatHistoryEntry ToHistoryEntry(ThreatEvent ev)
+        => new()
+        {
+            AlertId = ev.AlertId,
+            CreatedAt = ev.CreatedAt,
+            SourceIp = ev.SourceIp,
+            CountryIso = ev.Source?.CountryIsoCode,
+            Country = ev.Source?.Country,
+            City = ev.Source?.City,
+            Latitude = ev.Source?.Latitude,
+            Longitude = ev.Source?.Longitude,
+            Scenario = ev.Scenario,
+            Message = ev.Message,
+            Severity = ev.Severity.ToString()
+        };
+
+    private async Task<bool> PersistHistoryEntryAsync(AppDbContext db, ThreatHistoryEntry entry, CancellationToken ct)
     {
         try
         {
-            lock (_historyLock)
-            {
-                db.ThreatHistory.Add(new ThreatHistoryEntry
-                {
-                    AlertId = ev.AlertId,
-                    CreatedAt = ev.CreatedAt,
-                    SourceIp = ev.SourceIp,
-                    CountryIso = ev.Source?.CountryIsoCode,
-                    Country = ev.Source?.Country,
-                    City = ev.Source?.City,
-                    Latitude = ev.Source?.Latitude,
-                    Longitude = ev.Source?.Longitude,
-                    Scenario = ev.Scenario,
-                    Message = ev.Message,
-                    Severity = ev.Severity.ToString()
-                });
-            }
+            lock (_historyLock) db.ThreatHistory.Add(entry);
 
             // Trim old entries (>30 days) periodically
             if (db.ThreatHistory.Count() % 100 == 0)
@@ -239,6 +254,7 @@ public sealed class ThreatFeedService : BackgroundService
                 await db.ThreatHistory.Where(h => h.CreatedAt < cutoff).ExecuteDeleteAsync(ct);
             }
             await db.SaveChangesAsync(ct);
+            return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -246,7 +262,10 @@ public sealed class ThreatFeedService : BackgroundService
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Could not persist threat history for alert {AlertId}", ev.AlertId);
+            if (db.Entry(entry).State != EntityState.Detached)
+                db.Entry(entry).State = EntityState.Detached;
+            _log.LogWarning(ex, "Could not persist threat history for alert {AlertId}; will retry", entry.AlertId);
+            return false;
         }
     }
 }

@@ -3,6 +3,7 @@ using CrowdSecManager.Models;
 using CrowdSecManager.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -197,6 +198,37 @@ public sealed class ThreatFeedServiceTests
         }, Array.Empty<CsDecision>(), db, cancellation.Token));
     }
 
+    [Fact]
+    public async Task ProcessBatch_RetriesTransientHistoryWriteWithoutRepublishingThreat()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var failOnce = new FailFirstThreatWriteInterceptor();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection).AddInterceptors(failOnce));
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        var bus = new ThreatMapEventBus();
+        var service = CreateService(provider, bus);
+        var alerts = new[]
+        {
+            new CsAlert { Id = 82, Source = "203.0.113.82", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+        };
+
+        await service.ProcessBatchAsync(alerts, Array.Empty<CsDecision>(), db);
+
+        Assert.Equal(0, await db.ThreatHistory.CountAsync());
+        Assert.Single(bus.GetSnapshot().RecentEvents);
+
+        await service.ProcessBatchAsync(alerts, Array.Empty<CsDecision>(), db);
+
+        Assert.Equal(1, await db.ThreatHistory.CountAsync());
+        Assert.Single(bus.GetSnapshot().RecentEvents);
+    }
+
     private sealed class FixedGeoIpService : IGeoIpService
     {
         public GeoPoint Home { get; } = new() { Latitude = 50, Longitude = 4, City = "Home" };
@@ -209,6 +241,24 @@ public sealed class ThreatFeedServiceTests
             Country = "Testland",
             CountryIsoCode = "TT"
         };
+    }
+
+    private sealed class FailFirstThreatWriteInterceptor : SaveChangesInterceptor
+    {
+        private bool _failed;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (!_failed && eventData.Context?.ChangeTracker.Entries<ThreatHistoryEntry>()
+                    .Any(entry => entry.State == EntityState.Added) == true)
+            {
+                _failed = true;
+                throw new InvalidOperationException("Simulated transient SQLite write failure.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     private static ThreatFeedService CreateService(IServiceProvider provider, IThreatMapEventBus bus,
