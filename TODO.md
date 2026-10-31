@@ -26,13 +26,14 @@
 - [x] Suppression de décision par ID utilise `--id`; suppression d’alerte utilise `alerts delete --id`.
 - [x] Ajout de décision choisit `--range` pour une valeur CIDR et `--ip` pour une IP seule.
 - [x] La carte ne marque plus comme traitées les alertes qui dépassent la limite de 20 événements d’un cycle.
+- [x] Le fallback GeoIP produit des coordonnées stables entre redémarrages ; la normalisation préserve IPv6 et reconnaît les plages IPv6 privées/locales.
 
 ## Vérifié dans cet environnement
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 51 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln` : 55 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -60,6 +61,7 @@
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
 - [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
 - [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication intra/inter-redémarrage, stats à vide et fenêtres de 20 alertes.
+- [x] Tester le fallback GeoIP déterministe, la préservation des adresses IPv6, la détection d’IPv6 privé et le nettoyage IP/port/CIDR.
 - [x] Tester `PollOnceAsync` de `ThreatFeedService` sur les branches LAPI et fallback CLI, avec persistance et annulation.
 - [ ] Vérifier en environnement d’hôte le cycle périodique du `ThreatFeedService` avec LAPI/CLI réellement actifs.
 - [x] Persister les clés ASP.NET Data Protection dans le répertoire applicatif afin que les cookies d’authentification survivent au redémarrage ; chemin surchargeable avec `DataProtection__KeysPath`.

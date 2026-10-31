@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using CrowdSecManager.Models;
 using MaxMind.GeoIP2;
 using MaxMind.GeoIP2.Responses;
@@ -65,13 +68,9 @@ public sealed class GeoIpService : IGeoIpService, IDisposable
         if (string.IsNullOrWhiteSpace(ip))
             return Fallback(ip);
 
-        // Normalize - the API can give us IPs with port or cidr
-        ip = ip.Split('/', ':')[0];
-        if (!IPAddress.TryParse(ip, out var addr))
-            return Fallback(ip);
-
-        if (addr.AddressFamily is System.Net.Sockets.AddressFamily.InterNetworkV6)
-            addr = addr.MapToIPv4();
+        ip = NormalizeAddress(ip);
+        if (!IPAddress.TryParse(ip, out var addr)) return Fallback(ip);
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
 
         // RFC1918 / loopback / link-local -> home location
         if (IsPrivate(addr))
@@ -114,6 +113,16 @@ public sealed class GeoIpService : IGeoIpService, IDisposable
     private static bool IsPrivate(IPAddress a)
     {
         if (IPAddress.IsLoopback(a)) return true;
+        if (a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            var ipv6 = a.GetAddressBytes();
+            // Unique-local (fc00::/7), link-local (fe80::/10), unspecified and loopback.
+            if ((ipv6[0] & 0xFE) == 0xFC
+                || (ipv6[0] == 0xFE && (ipv6[1] & 0xC0) == 0x80)
+                || a.Equals(IPAddress.IPv6Any))
+                return true;
+            return false;
+        }
         var b = a.GetAddressBytes();
         if (b.Length != 4) return false;
         // 10.0.0.0/8
@@ -127,12 +136,43 @@ public sealed class GeoIpService : IGeoIpService, IDisposable
         return false;
     }
 
+    private static string NormalizeAddress(string ip)
+    {
+        ip = ip.Trim();
+        var slash = ip.IndexOf('/');
+        if (slash >= 0) ip = ip[..slash].Trim();
+
+        // Bracketed IPv6 may carry a port: [2001:db8::1]:443
+        if (ip.StartsWith("[", StringComparison.Ordinal))
+        {
+            var closeBracket = ip.IndexOf(']');
+            if (closeBracket > 1)
+            {
+                var bracketedAddress = ip[1..closeBracket];
+                if (IPAddress.TryParse(bracketedAddress, out _)) return bracketedAddress;
+            }
+        }
+
+        if (IPAddress.TryParse(ip, out _)) return ip;
+
+        // A single IPv4 host followed by a numeric port (IPv6 remains unmodified).
+        var colon = ip.LastIndexOf(':');
+        if (colon > 0
+            && int.TryParse(ip[(colon + 1)..], out _)
+            && IPAddress.TryParse(ip[..colon], out var host)
+            && host.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            return ip[..colon];
+
+        return ip;
+    }
+
     /// <summary>Used when no MaxMind DB is mounted. Hash the IP to a deterministic-but-spread
     /// location so the map still looks alive without misleading the operator about precision.</summary>
     private GeoPoint Fallback(string? ip)
     {
-        var hash = (ip ?? "0").GetHashCode();
-        var lat = (hash & 0xFF) * 0.7 - 90;        // -90..+90
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(ip ?? "0"));
+        var hash = BinaryPrimitives.ReadUInt32LittleEndian(digest);
+        var lat = (hash & 0xFF) * 0.7 - 90;          // -90..+90
         var lon = ((hash >> 8) & 0x1FF) * 0.7 - 180; // -180..+180
         return new GeoPoint
         {
