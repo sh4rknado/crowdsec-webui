@@ -82,6 +82,7 @@
     private Dictionary<string, int> _topCountries = new();
     private readonly List<ThreatEvent> _recent = new();
     private readonly HashSet<long> _recentAlertIds = new();
+    private readonly ThreatMapEventReplayBuffer _replayBuffer = new();
     private bool _started;
     private bool _mapReady;
 
@@ -109,20 +110,23 @@
             geoAvailable = Geo.IsDatabaseAvailable
         });
 
-        _mapReady = true;
         var snapshot = Events.GetSnapshot();
         _stats = snapshot.Stats;
-        foreach (var ev in snapshot.RecentEvents)
+        var firstDrain = true;
+        while (true)
         {
-            if (_recentAlertIds.Add(ev.AlertId))
+            var eventsToPlot = _replayBuffer.Drain(firstDrain ? snapshot.RecentEvents : null);
+            firstDrain = false;
+            if (eventsToPlot.Count == 0) break;
+
+            foreach (var ev in eventsToPlot)
             {
-                _recent.Insert(0, ev);
-                if (_recent.Count > 50) _recent.RemoveAt(_recent.Count - 1);
-                if (ev.Source?.Country is not null)
-                    _topCountries[ev.Source.Country] = _topCountries.GetValueOrDefault(ev.Source.Country) + 1;
-                await JS.InvokeVoidAsync("threatMap.plotThreat", ev);
+                if (_recentAlertIds.Add(ev.AlertId)) AddRecent(ev);
+                try { await JS.InvokeVoidAsync("threatMap.plotThreat", ev); }
+                catch (Exception ex) { Log.LogDebug("plotThreat: {Msg}", ex.Message); }
             }
         }
+        _mapReady = true;
         StateHasChanged();
     }
 
@@ -131,24 +135,30 @@
         {
             if (_recentAlertIds.Add(ev.AlertId))
             {
-                _recent.Insert(0, ev);
-                if (_recent.Count > 50) _recent.RemoveAt(_recent.Count - 1);
-                if (ev.Source?.Country is not null)
-                {
-                    _topCountries[ev.Source.Country] = _topCountries.GetValueOrDefault(ev.Source.Country) + 1;
-                    if (_topCountries.Count > 8)
-                        _topCountries = _topCountries.OrderByDescending(x => x.Value).Take(8)
-                            .ToDictionary(x => x.Key, x => x.Value);
-                }
+                AddRecent(ev);
                 if (_mapReady)
                 {
                     try { await JS.InvokeVoidAsync("threatMap.plotThreat", ev); }
                     catch (Exception ex) { Log.LogDebug("plotThreat: {Msg}", ex.Message); }
                 }
+                else _replayBuffer.Enqueue(ev);
             }
             _stats = stats;
             StateHasChanged();
         });
+
+    private void AddRecent(ThreatEvent ev)
+    {
+        _recent.Insert(0, ev);
+        if (_recent.Count > 50) _recent.RemoveAt(_recent.Count - 1);
+        if (ev.Source?.Country is not null)
+        {
+            _topCountries[ev.Source.Country] = _topCountries.GetValueOrDefault(ev.Source.Country) + 1;
+            if (_topCountries.Count > 8)
+                _topCountries = _topCountries.OrderByDescending(x => x.Value).Take(8)
+                    .ToDictionary(x => x.Key, x => x.Value);
+        }
+    }
 
     private void OnStatsUpdated(ThreatMapStats stats)
         => _ = InvokeAsync(() =>

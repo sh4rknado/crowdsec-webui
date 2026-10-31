@@ -26,6 +26,7 @@
 - [x] Suppression de décision par ID utilise `--id`; suppression d’alerte utilise `alerts delete --id`.
 - [x] Ajout de décision choisit `--range` pour une valeur CIDR et `--ip` pour une IP seule.
 - [x] La carte ne marque plus comme traitées les alertes qui dépassent la limite de 20 événements d’un cycle.
+- [x] La carte met en tampon les événements reçus durant l’initialisation JavaScript puis les réconcilie au snapshot sans perdre ni doubler les alertes.
 - [x] Le fallback GeoIP produit des coordonnées stables entre redémarrages ; la normalisation préserve IPv6 et reconnaît les plages IPv6 privées/locales.
 
 ## Vérifié dans cet environnement
@@ -33,8 +34,8 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 81 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
-- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 81 tests.
+- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 84 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 84 tests.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -63,6 +64,7 @@
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
 - [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
 - [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication intra/inter-redémarrage, stats à vide et fenêtres de 20 alertes.
+- [x] Tester le replay de la carte : fusion snapshot/événements avant initialisation, déduplication, replay incrémental et capacité bornée du tampon.
 - [x] Propager l’annulation pendant l’écriture de l’historique SQLite et journaliser les erreurs de persistance avec l’ID d’alerte ; test couvrant l’annulation pendant l’écriture.
 - [x] Réessayer les écritures d’historique temporairement échouées au cycle de polling suivant, sans republier l’événement temps réel ; test avec un intercepteur SQLite simulant une panne ponctuelle.
 - [x] Tester la purge SQLite des lignes d’historique de plus de 30 jours au seuil de nettoyage de 100 insertions.
