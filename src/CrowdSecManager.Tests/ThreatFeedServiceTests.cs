@@ -70,6 +70,40 @@ public sealed class ThreatFeedServiceTests
     }
 
     [Fact]
+    public async Task HostedService_PeriodicallyPollsAndStopsOnCancellation()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var alerts = new[]
+        {
+            new CsAlert { Id = 79, Source = "203.0.113.79", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+        };
+        var cli = CreateCliProxy(alerts, Array.Empty<CsDecision>(), out var cliState);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        services.AddSingleton<ICrowdSecApiService>(new FixedApi(true, Array.Empty<CsDecision>()));
+        services.AddSingleton(cli);
+        await using var provider = services.BuildServiceProvider();
+        await using (var scope = provider.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreatedAsync();
+
+        var service = CreateService(provider, new ThreatMapEventBus(), pollIntervalSeconds: 3);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await cliState.TwoAlertPolls.Task.WaitAsync(TimeSpan.FromSeconds(9));
+            Assert.True(cliState.AlertCalls >= 2);
+            await using var verifyScope = provider.CreateAsyncScope();
+            Assert.Equal(1, await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>().ThreatHistory.CountAsync());
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task ProcessBatch_PersistsPublishesAndDeduplicatesAlertsWithinLimit()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -152,9 +186,10 @@ public sealed class ThreatFeedServiceTests
         };
     }
 
-    private static ThreatFeedService CreateService(IServiceProvider provider, IThreatMapEventBus bus, int maxArcs = 60)
+    private static ThreatFeedService CreateService(IServiceProvider provider, IThreatMapEventBus bus,
+        int maxArcs = 60, int pollIntervalSeconds = 8)
         => new(provider, bus, new FixedGeoIpService(),
-            Options.Create(new ThreatFeedOptions { MaxActiveArcs = maxArcs }),
+            Options.Create(new ThreatFeedOptions { MaxActiveArcs = maxArcs, PollIntervalSeconds = pollIntervalSeconds }),
             Options.Create(new GeoIpOptions()), provider.GetRequiredService<ILogger<ThreatFeedService>>());
 
     private static ICrowdSecCliService CreateCliProxy(IReadOnlyList<CsAlert> alerts,
@@ -193,6 +228,7 @@ public sealed class ThreatFeedServiceTests
         internal IReadOnlyList<CsDecision> Decisions { get; set; } = Array.Empty<CsDecision>();
         internal int AlertCalls { get; private set; }
         internal int DecisionCalls { get; private set; }
+        internal TaskCompletionSource TwoAlertPolls { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
             => targetMethod?.Name switch
@@ -205,6 +241,7 @@ public sealed class ThreatFeedServiceTests
         private Task<IReadOnlyList<CsAlert>> ListAlerts()
         {
             AlertCalls++;
+            if (AlertCalls >= 2) TwoAlertPolls.TrySetResult();
             return Task.FromResult(Alerts);
         }
 
