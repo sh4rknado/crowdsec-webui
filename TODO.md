@@ -34,6 +34,7 @@
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
 - [x] `dotnet test src/CrowdSecManager.sln` : 55 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release actuelle : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit et `dotnet test src/CrowdSecManager.sln -c Release --no-build` passe les 55 tests.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
