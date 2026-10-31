@@ -240,9 +240,13 @@ public sealed class ThreatFeedService : BackgroundService
             }
             await db.SaveChangesAsync(ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            _log.LogDebug("Could not persist threat history: {Msg}", ex.Message);
+            _log.LogWarning(ex, "Could not persist threat history for alert {AlertId}", ev.AlertId);
         }
     }
 }

@@ -33,8 +33,8 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 78 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
-- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 78 tests.
+- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 79 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 79 tests.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -63,6 +63,7 @@
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
 - [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
 - [x] Tester le traitement des lots de `ThreatFeedService` : persistance SQLite, diffusion, déduplication intra/inter-redémarrage, stats à vide et fenêtres de 20 alertes.
+- [x] Propager l’annulation pendant l’écriture de l’historique SQLite et journaliser les erreurs de persistance avec l’ID d’alerte ; test couvrant l’annulation pendant l’écriture.
 - [x] Tester le fallback GeoIP déterministe, la préservation des adresses IPv6, la détection d’IPv6 privé et le nettoyage IP/port/CIDR.
 - [x] Tester `PollOnceAsync` de `ThreatFeedService` sur les branches LAPI et fallback CLI, avec persistance et annulation.
 - [x] Tester le `BackgroundService` périodique avec dépendances simulées : deux cycles de polling, déduplication/persistance et arrêt sur annulation.

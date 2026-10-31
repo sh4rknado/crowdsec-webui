@@ -172,6 +172,31 @@ public sealed class ThreatFeedServiceTests
         Assert.Equal(2, bus.GetSnapshot().Stats.TotalDecisions);
     }
 
+    [Fact]
+    public async Task ProcessBatch_PropagatesCancellationDuringHistoryPersistence()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        var service = CreateService(provider, new ThreatMapEventBus());
+
+        // Initialize persisted alert IDs first so cancellation occurs in the write path.
+        await service.ProcessBatchAsync(Array.Empty<CsAlert>(), Array.Empty<CsDecision>(), db);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ProcessBatchAsync(new[]
+        {
+            new CsAlert { Id = 81, Source = "203.0.113.81", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+        }, Array.Empty<CsDecision>(), db, cancellation.Token));
+    }
+
     private sealed class FixedGeoIpService : IGeoIpService
     {
         public GeoPoint Home { get; } = new() { Latitude = 50, Longitude = 4, City = "Home" };
