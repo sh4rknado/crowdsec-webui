@@ -35,8 +35,8 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 86 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
-- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 86 tests.
+- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 87 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 87 tests.
 - [x] Tests JavaScript du renderer exécutés dans le runtime Node de la session : 4 assertions passent sur le plafond/LRU des sources, leur expiration, le compteur/ripple et le timeout CDN (`tests/javascript/threatmap.test.mjs`).
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
@@ -60,6 +60,7 @@
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
 - [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
 - [x] Tester par HTTP les pages Razor de connexion/déconnexion avec TestServer : jeton antiforgery, mot de passe erroné puis valide, émission et usage du cookie Identity sur `/decisions`, puis expiration à la déconnexion.
+- [x] Tester que `/login` refuse un POST sans jeton antiforgery et neutralise une URL de retour externe.
 - [ ] Tester les actions interactives login/logout et le cookie d’authentification dans un navigateur sur l’hôte de déploiement.
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
 - [x] Tester localement le backup `.tgz` avec YAML imbriqué et la protection Load/Save contre un junction/lien symbolique qui sort de la whitelist.

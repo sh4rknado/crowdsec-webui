@@ -106,6 +106,38 @@ public sealed class HttpSmokeTests
         Assert.Equal("/login?returnUrl=%2Fdecisions", protectedAfterLogout.Headers.Location!.PathAndQuery);
     }
 
+    [Fact]
+    public async Task LoginRejectsMissingAntiforgeryTokenAndExternalReturnUrl()
+    {
+        using var factory = new ManagerFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        using var missingToken = await client.PostAsync("/login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["ReturnUrl"] = "https://attacker.example/",
+            ["Input.Username"] = "http-test-admin",
+            ["Input.Password"] = "Strong!Password2026"
+        }));
+        Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
+
+        using var loginPage = await client.GetAsync("/login?returnUrl=https%3A%2F%2Fattacker.example%2F");
+        var token = ExtractAntiforgeryToken(await loginPage.Content.ReadAsStringAsync());
+        using var login = await client.PostAsync("/login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["ReturnUrl"] = "https://attacker.example/",
+            ["Input.Username"] = "http-test-admin",
+            ["Input.Password"] = "Strong!Password2026"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        Assert.Equal("/", login.Headers.Location!.OriginalString);
+    }
+
     private static string ExtractAntiforgeryToken(string html)
     {
         var match = Regex.Match(html,
