@@ -50,7 +50,8 @@ Volume=/var/log:/var/log:ro,Z
 # ---- Environment ----
 # Admin credentials (REQUIRED on first boot, then ignored)
 Environment=ADMIN_USER=admin
-Environment=ADMIN_PASSWORD=ChangeMe!StrongP@ssw0rd
+# REQUIRED on first boot: add ADMIN_PASSWORD here or configure an EnvironmentFile.
+# Never commit a real password in this Quadlet file.
 # Home location (lat/lon) for the threat map - default: Brussels
 Environment=HOME_LATITUDE=50.8503
 Environment=HOME_LONGITUDE=4.3517

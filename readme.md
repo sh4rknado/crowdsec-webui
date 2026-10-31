@@ -146,7 +146,19 @@ cd crowdsec-manager
 sudo podman build --pull=always -t localhost/crowdsec-manager:latest -f Dockerfile .
 ```
 
-### 2. Install the Quadlet
+### 2. Set the initial admin password
+
+Before first start, edit `deploy/crowdsec-manager.container` and add a strong
+password:
+
+```ini
+Environment=ADMIN_PASSWORD=your-strong-password-here
+```
+
+For a host environment file instead, see the **Secrets** section below.
+The Quadlet intentionally has no built-in admin password.
+
+### 3. Install the Quadlet
 
 ```bash
 sudo ./deploy/install-quadlet.sh
@@ -165,21 +177,6 @@ You can also do it manually:
 sudo install -m 0644 deploy/crowdsec-manager.container /etc/containers/systemd/
 sudo systemctl daemon-reload
 sudo systemctl enable --now crowdsec-manager
-```
-
-### 3. Configure the admin password
-
-Edit `/etc/containers/systemd/crowdsec-manager.container` and set:
-
-```
-Environment=ADMIN_PASSWORD=your-strong-password-here
-```
-
-Then:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart crowdsec-manager
 ```
 
 > The `ADMIN_PASSWORD` env var is read **only on first boot** to seed the

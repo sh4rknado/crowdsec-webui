@@ -53,7 +53,7 @@ systemctl enable --now crowdsec-manager.service
 echo ""
 echo "==> Done. The UI will be available on http://localhost:8081"
 echo "    First boot takes ~20s (cscli config gen + bouncer registration)."
-echo "    Default admin: admin  /  set ADMIN_PASSWORD in the .container file."
+echo "    Set ADMIN_PASSWORD in the Quadlet or its EnvironmentFile before first boot."
 echo ""
 echo "Logs:        sudo journalctl -u crowdsec-manager -f"
 echo "Status:      sudo systemctl status crowdsec-manager"

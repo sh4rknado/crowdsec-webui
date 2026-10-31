@@ -32,7 +32,7 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 48 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 49 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -47,6 +47,7 @@
 - [ ] Tester le LAPI `/v1/decisions` sur CrowdSec réel avec une vraie clé bouncer.
 - [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête Bearer et repli cscli quand l’API échoue.
 - [x] Relier les variables legacy `CROWDSEC_BOUNCER_APIKEY`, `LOCAL_API_URL`, chemins GeoIP/CrowdSec et coordonnées de la carte aux clés de configuration ASP.NET ; tests de mapping et priorité `.NET` inclus.
+- [x] Supprimer le mot de passe administrateur faible présent par défaut dans le Quadlet et ajouter un test de régression.
 - [x] Tester la génération des commandes cscli Hub pour collections, parsers, scénarios, postoverflows, AppSec et contexts ; tester aussi la suppression d’alerte par ID.
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
 - [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
