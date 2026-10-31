@@ -11,7 +11,12 @@ public sealed class CliResult
     public bool Success => ExitCode == 0;
 
     public string? FlattenError()
-        => string.IsNullOrWhiteSpace(Success ? null : Stderr) ? null : Stderr.Trim();
+    {
+        if (Success) return null;
+        if (!string.IsNullOrWhiteSpace(Stderr)) return Stderr.Trim();
+        if (!string.IsNullOrWhiteSpace(Stdout)) return Stdout.Trim();
+        return null;
+    }
 }
 
 public sealed class ConfigFileInfo
