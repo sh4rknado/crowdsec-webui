@@ -59,6 +59,57 @@ public sealed class CrowdSecCliServiceTests
     }
 
     [Fact]
+    public async Task ValidateEngineConfig_ExecutesConfiguredBinaryAndReturnsDiagnostics()
+    {
+        var runner = new RecordingProcessRunner("invalid yaml at line 3", exitCode: 1);
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions { EnginePath = "fake-crowdsec", ConfigDir = "C:/crowdsec", CommandTimeoutSeconds = 20 }),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        var result = await service.ValidateEngineConfigAsync();
+
+        Assert.False(result.Success);
+        Assert.Equal("invalid yaml at line 3", result.FlattenError());
+        Assert.Equal("fake-crowdsec", runner.FileName);
+        Assert.Equal(new[] { "-t", "-c", Path.Combine("C:/crowdsec", "config.yaml") }, runner.Arguments);
+        Assert.Equal(20, runner.TimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task ReloadService_ExecutesScopedSignalAndReportsSuccess()
+    {
+        var runner = new RecordingProcessRunner("");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions()),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        var result = await service.ReloadServiceAsync();
+
+        Assert.True(result.Success);
+        Assert.Equal("pkill", runner.FileName);
+        Assert.Equal(new[] { "--signal", "HUP", "--exact", "crowdsec" }, runner.Arguments);
+        Assert.Equal("Reload signal sent to CrowdSec.", result.Stdout);
+    }
+
+    [Fact]
+    public async Task ReloadService_ExplainsWhenNoCrowdSecProcessWasSignalled()
+    {
+        var runner = new RecordingProcessRunner("", exitCode: 1, stderr: "no matching process");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions()),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        var result = await service.ReloadServiceAsync();
+
+        Assert.False(result.Success);
+        Assert.Contains("No CrowdSec process was signalled.", result.Stderr);
+        Assert.Contains("no matching process", result.Stderr);
+    }
+
+    [Fact]
     public async Task AddDecision_RejectsInvalidTargetWithoutCallingCscli()
     {
         var runner = new RecordingProcessRunner("should not execute");
@@ -102,15 +153,19 @@ public sealed class CrowdSecCliServiceTests
     public void DecisionTargetValidation_RejectsInvalidCidrPrefix(string target)
         => Assert.False(CrowdSecCommandBuilder.IsValidDecisionTarget(target));
 
-    private sealed class RecordingProcessRunner(string stdout) : ICrowdSecProcessRunner
+    private sealed class RecordingProcessRunner(string stdout, int exitCode = 0, string stderr = "") : ICrowdSecProcessRunner
     {
         public string[] Arguments { get; private set; } = Array.Empty<string>();
+        public string FileName { get; private set; } = "";
+        public int TimeoutSeconds { get; private set; }
 
         public Task<CliResult> ExecuteAsync(ProcessStartInfo startInfo, int timeoutSeconds,
             CancellationToken ct = default)
         {
+            FileName = startInfo.FileName;
             Arguments = startInfo.ArgumentList.ToArray();
-            return Task.FromResult(new CliResult { ExitCode = 0, Stdout = stdout });
+            TimeoutSeconds = timeoutSeconds;
+            return Task.FromResult(new CliResult { ExitCode = exitCode, Stdout = stdout, Stderr = stderr });
         }
     }
 }

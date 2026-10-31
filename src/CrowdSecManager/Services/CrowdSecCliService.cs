@@ -266,33 +266,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 
         try
         {
-            using var process = Process.Start(psi);
-            if (process is null)
-                return new CliResult { ExitCode = -1, Stderr = "Could not start the CrowdSec engine.", Duration = stopwatch.Elapsed };
-
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _opt.CommandTimeoutSeconds)));
-            try { await process.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException)
-            {
-                try { process.Kill(entireProcessTree: true); } catch { }
-                return new CliResult
-                {
-                    ExitCode = -1,
-                    Stderr = ct.IsCancellationRequested ? "Configuration test cancelled." : "Configuration test timed out.",
-                    Duration = stopwatch.Elapsed
-                };
-            }
-
-            return new CliResult
-            {
-                ExitCode = process.ExitCode,
-                Stdout = await stdoutTask,
-                Stderr = await stderrTask,
-                Duration = stopwatch.Elapsed
-            };
+            return await _processRunner.ExecuteAsync(psi, Math.Max(1, _opt.CommandTimeoutSeconds), ct);
         }
         catch (Exception ex)
         {
@@ -316,31 +290,18 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 
         try
         {
-            using var process = Process.Start(psi);
-            if (process is null)
-                return new CliResult { ExitCode = -1, Stderr = "Could not start pkill.", Duration = stopwatch.Elapsed };
-
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, _opt.CommandTimeoutSeconds)));
-            try
+            var result = await _processRunner.ExecuteAsync(psi, Math.Max(1, _opt.CommandTimeoutSeconds), ct);
+            if (result.Success)
             {
-                await process.WaitForExitAsync(timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                try { process.Kill(entireProcessTree: true); } catch { }
-                var message = ct.IsCancellationRequested ? "Reload cancelled." : "Reload timed out.";
-                return new CliResult { ExitCode = -1, Stderr = message, Duration = stopwatch.Elapsed };
+                result.Stdout = "Reload signal sent to CrowdSec.";
+                return result;
             }
 
-            var stderr = await process.StandardError.ReadToEndAsync(ct);
-            return new CliResult
-            {
-                ExitCode = process.ExitCode,
-                Stdout = process.ExitCode == 0 ? "Reload signal sent to CrowdSec." : "",
-                Stderr = process.ExitCode == 0 ? stderr : $"No CrowdSec process was signalled. {stderr}".Trim(),
-                Duration = stopwatch.Elapsed
-            };
+            var detail = result.FlattenError();
+            result.Stderr = string.IsNullOrWhiteSpace(detail)
+                ? "No CrowdSec process was signalled."
+                : $"No CrowdSec process was signalled. {detail}";
+            return result;
         }
         catch (Exception ex)
         {
