@@ -20,6 +20,8 @@ public sealed class ThreatFeedService : BackgroundService
     private readonly ConcurrentDictionary<string, ThreatEvent> _recent = new();
     private readonly ConcurrentDictionary<long, byte> _seenAlerts = new();
     private readonly object _historyLock = new();
+    private readonly SemaphoreSlim _seenAlertInitialization = new(1, 1);
+    private bool _seenAlertsInitialized;
 
     public ThreatFeedService(IServiceProvider sp,
         IThreatMapEventBus events,
@@ -86,6 +88,7 @@ public sealed class ThreatFeedService : BackgroundService
     internal async Task ProcessBatchAsync(IReadOnlyList<CsAlert> alerts,
         IReadOnlyList<CsDecision> decisions, AppDbContext db, CancellationToken ct = default)
     {
+        await InitializeSeenAlertsAsync(db, ct);
         var stats = BuildStats(alerts, decisions);
 
         var fresh = alerts
@@ -110,8 +113,30 @@ public sealed class ThreatFeedService : BackgroundService
             _events.PublishThreat(ev, stats);
         }
 
-        if (fresh.Count > 0 || stats.TotalAlerts > 0)
-            _events.PublishStats(stats);
+        _events.PublishStats(stats);
+    }
+
+    private async Task InitializeSeenAlertsAsync(AppDbContext db, CancellationToken ct)
+    {
+        if (_seenAlertsInitialized) return;
+
+        await _seenAlertInitialization.WaitAsync(ct);
+        try
+        {
+            if (_seenAlertsInitialized) return;
+            var cutoff = DateTime.UtcNow.AddDays(-30);
+            var persistedIds = await db.ThreatHistory.AsNoTracking()
+                .Where(entry => entry.CreatedAt >= cutoff)
+                .Select(entry => entry.AlertId)
+                .Distinct()
+                .ToListAsync(ct);
+            foreach (var id in persistedIds) _seenAlerts.TryAdd(id, 0);
+            _seenAlertsInitialized = true;
+        }
+        finally
+        {
+            _seenAlertInitialization.Release();
+        }
     }
 
     private static ThreatMapStats BuildStats(IReadOnlyList<CsAlert> alerts, IReadOnlyList<CsDecision> decisions)

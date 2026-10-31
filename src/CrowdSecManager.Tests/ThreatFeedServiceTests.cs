@@ -106,6 +106,36 @@ public sealed class ThreatFeedServiceTests
 
         await service.ProcessBatchAsync(alerts, Array.Empty<CsDecision>(), db);
         Assert.Equal(25, await db.ThreatHistory.CountAsync());
+
+        var restartedBus = new ThreatMapEventBus();
+        var restartedService = CreateService(provider, restartedBus, 50);
+        await restartedService.ProcessBatchAsync(alerts, Array.Empty<CsDecision>(), db);
+        Assert.Empty(restartedBus.GetSnapshot().RecentEvents);
+        Assert.Equal(25, await db.ThreatHistory.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessBatch_PublishesUpdatedStatsWhenThereAreNoAlerts()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        var bus = new ThreatMapEventBus();
+        var service = CreateService(provider, bus);
+
+        await service.ProcessBatchAsync(Array.Empty<CsAlert>(), new[]
+        {
+            new CsDecision { Id = 1 }, new CsDecision { Id = 2 }
+        }, db);
+
+        Assert.Equal(0, bus.GetSnapshot().Stats.TotalAlerts);
+        Assert.Equal(2, bus.GetSnapshot().Stats.TotalDecisions);
     }
 
     private sealed class FixedGeoIpService : IGeoIpService
