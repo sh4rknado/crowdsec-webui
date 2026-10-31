@@ -1,4 +1,6 @@
 using CrowdSecManager.Models;
+using System.Formats.Tar;
+using System.IO.Compression;
 using Microsoft.Extensions.Options;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -196,42 +198,55 @@ public sealed class ConfigFileService : IConfigFileService
         }
     }
 
-    public async Task BackupAsync(string targetDir, CancellationToken ct = default)
+    public Task BackupAsync(string targetDir, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         Directory.CreateDirectory(targetDir);
-        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff");
         var archive = Path.Combine(targetDir, $"crowdsec-config-{stamp}.tgz");
-        // Best-effort tar backup (works in container, falls back to copy)
+        var temporaryArchive = archive + ".tmp";
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo
+            var options = new EnumerationOptions
             {
-                FileName = "/bin/tar",
-                Arguments = $"czf \"{archive}\" -C \"{_opt.ConfigDir}\" .",
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = false,
+                AttributesToSkip = FileAttributes.ReparsePoint
             };
-            using var p = System.Diagnostics.Process.Start(psi);
-            if (p is not null)
+            using (var output = File.Create(temporaryArchive))
+            using (var gzip = new GZipStream(output, CompressionLevel.Optimal, leaveOpen: false))
+            using (var tar = new TarWriter(gzip, leaveOpen: false))
             {
-                var err = await p.StandardError.ReadToEndAsync(ct);
-                await p.WaitForExitAsync(ct);
-                if (p.ExitCode != 0)
-                    _log.LogWarning("tar backup returned {Code}: {Err}", p.ExitCode, err);
+                var pathComparison = OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal;
+                var configRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_opt.ConfigDir));
+                var backupRootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetDir));
+                if (string.Equals(configRoot, backupRootPath, pathComparison))
+                    throw new InvalidOperationException("The backup target must not be the CrowdSec config directory itself.");
+                var configRootPrefix = configRoot + Path.DirectorySeparatorChar;
+                var backupRoot = backupRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                                 + Path.DirectorySeparatorChar;
+                var backupIsInsideConfig = backupRoot.StartsWith(configRootPrefix, pathComparison);
+                foreach (var filePath in Directory.EnumerateFiles(_opt.ConfigDir, "*", options))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (backupIsInsideConfig && Path.GetFullPath(filePath).StartsWith(backupRoot, pathComparison)) continue;
+                    var entryName = Path.GetRelativePath(_opt.ConfigDir, filePath).Replace('\\', '/');
+                    using var input = File.OpenRead(filePath);
+                    var entry = new PaxTarEntry(TarEntryType.RegularFile, entryName) { DataStream = input };
+                    tar.WriteEntry(entry);
+                }
             }
+
+            File.Move(temporaryArchive, archive);
+            _log.LogInformation("Backed up CrowdSec configuration to {Archive}", archive);
         }
-        catch (Exception ex)
+        finally
         {
-            _log.LogWarning(ex, "tar backup failed - copying raw files instead");
-            foreach (var (rel, _) in KnownFiles)
-            {
-                var src = Path.Combine(_opt.ConfigDir, rel);
-                if (!File.Exists(src)) continue;
-                var dst = Path.Combine(targetDir, $"{stamp}-{rel.Replace('/', '_')}");
-                File.Copy(src, dst, true);
-            }
+            if (File.Exists(temporaryArchive)) File.Delete(temporaryArchive);
         }
+        return Task.CompletedTask;
     }
 
     private static bool IsYamlPath(string path)
@@ -246,9 +261,34 @@ public sealed class ConfigFileService : IConfigFileService
         if (segments.Length == 0 || segments.Any(s => s is "." or "..")) return false;
         if (!IsYamlPath(normalized)) return false;
 
-        if (segments.Length == 1)
-            return KnownFiles.Any(f => string.Equals(f.Path, normalized, StringComparison.OrdinalIgnoreCase));
+        var inWhitelist = segments.Length == 1
+            ? KnownFiles.Any(f => string.Equals(f.Path, normalized, StringComparison.OrdinalIgnoreCase))
+            : EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase);
+        if (!inWhitelist) return false;
 
-        return EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase);
+        var root = Path.GetFullPath(_opt.ConfigDir);
+        var target = Path.GetFullPath(Path.Combine(root, Path.Combine(segments)));
+        var relativeToRoot = Path.GetRelativePath(root, target);
+        if (Path.IsPathRooted(relativeToRoot)
+            || relativeToRoot == ".."
+            || relativeToRoot.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return false;
+
+        var current = root;
+        foreach (var segment in segments)
+        {
+            current = Path.Combine(current, segment);
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                    return false;
+            }
+            catch (FileNotFoundException) { return true; }
+            catch (DirectoryNotFoundException) { return true; }
+            catch (UnauthorizedAccessException) { return false; }
+            catch (IOException) { return false; }
+        }
+
+        return true;
     }
 }

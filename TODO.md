@@ -31,7 +31,7 @@
 
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 41 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] `dotnet test src/CrowdSecManager.sln --no-restore` : 43 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -48,6 +48,7 @@
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
 - [ ] Tester les parcours login/logout et l’accès aux pages authentifiées via HTTP sur l’hôte de déploiement (l’accès réseau local est bloqué dans cet environnement).
 - [ ] Tester l’éditeur et la restauration de sauvegarde avec les fichiers de configuration CrowdSec réels.
+- [x] Tester localement le backup `.tgz` avec YAML imbriqué et la protection Load/Save contre un junction/lien symbolique qui sort de la whitelist.
 - [ ] Tester la carte temps réel avec des alertes réelles et une base GeoLite2-City.mmdb valide.
 - [x] Ajouter des tests SQLite pour la persistance de l’historique et pour l’amorçage/idempotence du rôle et du compte administrateur Identity.
 - [x] Tester les opérations SQLite Create/Read/Update/Delete de l’historique.
