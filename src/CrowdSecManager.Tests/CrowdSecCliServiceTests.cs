@@ -58,6 +58,50 @@ public sealed class CrowdSecCliServiceTests
         Assert.Contains("Failed to start cscli", result.Stderr);
     }
 
+    [Fact]
+    public async Task AddDecision_RejectsInvalidTargetWithoutCallingCscli()
+    {
+        var runner = new RecordingProcessRunner("should not execute");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions { CliPath = "fake-cscli", ConfigDir = "" }),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        var result = await service.AddDecisionAsync("203.0.113.999/24");
+
+        Assert.False(result.Success);
+        Assert.Contains("valid IPv4/IPv6", result.Stderr);
+        Assert.Empty(runner.Arguments);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.4")]
+    [InlineData("2001:db8::4")]
+    [InlineData("203.0.113.0/24")]
+    [InlineData("2001:db8::/64")]
+    public async Task AddDecision_AcceptsIpAndCidrTargets(string target)
+    {
+        var runner = new RecordingProcessRunner("");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions { CliPath = "fake-cscli", ConfigDir = "" }),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        var result = await service.AddDecisionAsync(target);
+
+        Assert.True(result.Success);
+        Assert.Equal(target.Contains('/') ? "--range" : "--ip", runner.Arguments[2]);
+        Assert.Equal(target, runner.Arguments[3]);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.1/33")]
+    [InlineData("2001:db8::/129")]
+    [InlineData("203.0.113.1/not-a-prefix")]
+    [InlineData("203.0.113.1/24/8")]
+    public void DecisionTargetValidation_RejectsInvalidCidrPrefix(string target)
+        => Assert.False(CrowdSecCommandBuilder.IsValidDecisionTarget(target));
+
     private sealed class RecordingProcessRunner(string stdout) : ICrowdSecProcessRunner
     {
         public string[] Arguments { get; private set; } = Array.Empty<string>();

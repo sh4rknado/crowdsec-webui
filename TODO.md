@@ -33,8 +33,8 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 60 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
-- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 60 tests.
+- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 69 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 69 tests.
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
@@ -52,6 +52,7 @@
 - [x] Supprimer le mot de passe administrateur faible présent par défaut dans le Quadlet et ajouter un test de régression.
 - [x] Refuser le démarrage initial sans `ADMIN_PASSWORD` et échouer clairement si l’identité ou le rôle administrateur ne peut pas être initialisé.
 - [x] Tester la génération des commandes cscli Hub pour collections, parsers, scénarios, postoverflows, AppSec et contexts ; tester aussi la suppression d’alerte par ID.
+- [x] Valider les cibles de décision IPv4/IPv6 et CIDR (préfixes compris) avant `cscli`; les tests vérifient qu’une cible invalide ne lance pas de processus.
 - [x] Tester `ListHubAsync` à travers le service CLI avec un exécuteur de processus simulé ; vérifie les arguments `hub list -a -o json` et le parsing des items disponibles/installés.
 - [x] Tester avec TestServer le rendu de `/login` et la redirection d’une route `[Authorize]` vers la connexion.
 - [x] Tester l’émission du cookie Identity, son accès à `/decisions`, le rejet d’un mot de passe erroné et l’expiration du cookie à la déconnexion.

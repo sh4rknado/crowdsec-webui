@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using CrowdSecManager.Models;
 using Microsoft.Extensions.Options;
@@ -203,7 +206,14 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
     public Task<CliResult> AddDecisionAsync(string ip, string duration = "4h",
         string? reason = null, string type = "ban", CancellationToken ct = default)
     {
-        return RunAsync(CrowdSecCommandBuilder.AddDecision(ip, duration, reason, type), ct);
+        if (!CrowdSecCommandBuilder.IsValidDecisionTarget(ip))
+            return Task.FromResult(new CliResult
+            {
+                ExitCode = 2,
+                Stderr = "Decision target must be a valid IPv4/IPv6 address or CIDR range."
+            });
+
+        return RunAsync(CrowdSecCommandBuilder.AddDecision(ip.Trim(), duration, reason, type), ct);
     }
 
     public Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null,
@@ -355,6 +365,21 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 /// <summary>Builds argument vectors for commands that modify CrowdSec state.</summary>
 public static class CrowdSecCommandBuilder
 {
+    public static bool IsValidDecisionTarget(string? ipOrRange)
+    {
+        if (string.IsNullOrWhiteSpace(ipOrRange)) return false;
+        var target = ipOrRange.Trim();
+        var slash = target.IndexOf('/');
+        if (slash < 0) return IPAddress.TryParse(target, out _);
+        if (slash == 0 || slash != target.LastIndexOf('/')) return false;
+        if (!IPAddress.TryParse(target[..slash], out var address)
+            || !int.TryParse(target[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var prefix))
+            return false;
+
+        var maxPrefix = address.AddressFamily == AddressFamily.InterNetwork ? 32 : 128;
+        return prefix >= 0 && prefix <= maxPrefix;
+    }
+
     public static IReadOnlyList<string> TestConfig(string configDir)
         => new[] { "-t", "-c", Path.Combine(configDir, "config.yaml") };
 
