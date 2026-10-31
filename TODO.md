@@ -47,6 +47,7 @@
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
 - [x] Vérifier la syntaxe Bash (`bash -n`) des trois scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh` et `deploy/entrypoint.sh` avec Git Bash ; Podman/systemd restent absents ici.
 - [x] Tester le démarrage isolé de `deploy/entrypoint.sh` avec `cscli`/`dotnet` remplacés par des stubs : branche side-by-side sans bootstrap, propagation des chemins, de l’URL LAPI, du token bouncer et des coordonnées GeoIP (17 assertions).
+- [x] Tester les garde-fous des scripts `deploy/update-image.sh` et `deploy/install-quadlet.sh` : les deux refusent un lancement non-root avant toute action (2 assertions).
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.
 - [ ] Exécuter les opérations mutantes Hub (install/remove/upgrade) sur une instance Linux de test avec les types retournés par la version déployée.
