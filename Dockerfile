@@ -27,6 +27,12 @@ RUN dotnet publish ./CrowdSecManager/CrowdSecManager.csproj \
 # then add the .NET ASP.NET runtime on top.
 FROM crowdsecurity/crowdsec:latest AS runtime
 
+# The manager starts CrowdSec alongside ASP.NET, so it invokes the official
+# image initializer itself instead of the base image's default ENTRYPOINT.
+RUN test -f /docker_start.sh \
+    && test -f /staging/etc/crowdsec/config.yaml \
+    && test -f /staging/etc/crowdsec/local_api_credentials.yaml
+
 # Switch to root for system-level installs
 USER root
 

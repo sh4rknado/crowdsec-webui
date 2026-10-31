@@ -25,6 +25,16 @@ GEOIP_DB_PATH="${GeoIp__DatabasePath:-${GEOIP_DB_PATH:-/var/lib/GeoIP/GeoLite2-C
 HOME_LATITUDE="${GeoIp__HomeLatitude:-${HOME_LATITUDE:-50.8503}}"
 HOME_LONGITUDE="${GeoIp__HomeLongitude:-${HOME_LONGITUDE:-4.3517}}"
 HOME_LABEL="${GeoIp__HomeLabel:-${HOME_LABEL:-Protected host}}"
+BOUNCER_KEY_FILE="${CrowdSec__BouncerApiKeyFile:-${CROWDSEC_BOUNCER_APIKEY_FILE:-${MANAGER_DB_DIR}/crowdsec-manager-bouncer.key}}"
+CROWDSEC_DOCKER_START_SCRIPT="${CROWDSEC_DOCKER_START_SCRIPT:-/docker_start.sh}"
+CROWDSEC_STAGING_CONFIG_DIR="${CROWDSEC_STAGING_CONFIG_DIR:-/staging/etc/crowdsec}"
+CROWDSEC_ENGINE_LOG="${CROWDSEC_ENGINE_LOG:-/dev/stdout}"
+CROWDSEC_STARTUP_TIMEOUT_SECONDS="${CROWDSEC_STARTUP_TIMEOUT_SECONDS:-120}"
+
+if ! [[ "$CROWDSEC_STARTUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[entrypoint] ERROR: CROWDSEC_STARTUP_TIMEOUT_SECONDS must be a positive integer." >&2
+    exit 1
+fi
 
 if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ] && [ -n "${CrowdSec__BouncerApiKey:-}" ]; then
     CROWDSEC_BOUNCER_APIKEY="${CrowdSec__BouncerApiKey}"
@@ -45,44 +55,56 @@ export GeoIp__HomeLatitude="$HOME_LATITUDE"
 export GeoIp__HomeLongitude="$HOME_LONGITUDE"
 export GeoIp__HomeLabel="$HOME_LABEL"
 
-mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$MANAGER_DB_DIR" /var/lib/GeoIP /var/lib/crowdsec-manager/backups
+mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$MANAGER_DB_DIR" "$(dirname "$BOUNCER_KEY_FILE")" /var/lib/GeoIP /var/lib/crowdsec-manager/backups
 
 log() { echo "[entrypoint] $*"; }
 
-# --- 1. Bootstrap CrowdSec config if missing ---
-if [ ! -f "$CONFIG_DIR/config.yaml" ] && [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
-    log "Bootstrapping CrowdSec config in $CONFIG_DIR ..."
-    # cscli config gen writes a default config.yaml + profiles.yaml + acquis.yaml
-    # into $CROWDSEC_CONFIG (defaults to /etc/crowdsec)
-    if command -v cscli >/dev/null 2>&1; then
-        cscli config gen 2>&1 || {
-            log "WARNING: 'cscli config gen' failed - assuming config will be mounted separately"
-        }
-        # Pull the hub index so collections/parsers/scenarios can be installed later
-        cscli hub update 2>&1 || log "WARNING: 'cscli hub update' failed (offline?)"
+# --- 1. Initialize and start the bundled CrowdSec engine ---
+if [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
+    if [ ! -f "$CONFIG_DIR/config.yaml" ] && [ ! -f "$CROWDSEC_STAGING_CONFIG_DIR/config.yaml" ]; then
+        log "ERROR: $CONFIG_DIR/config.yaml is missing and the CrowdSec image has no staged defaults."
+        exit 1
     fi
-fi
+    if [ ! -f "$CROWDSEC_DOCKER_START_SCRIPT" ]; then
+        log "ERROR: CrowdSec image startup script not found at $CROWDSEC_DOCKER_START_SCRIPT."
+        exit 1
+    fi
 
-# --- 2. Start the CrowdSec daemon ---
-if [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ] && command -v crowdsec >/dev/null 2>&1; then
-    log "Starting crowdsec daemon (log processor + LAPI on :8080) ..."
-    # crowdsec with no flags runs in foreground; we want it in the background.
-    nohup crowdsec -error >/var/log/crowdsec.log 2>&1 &
+    log "Starting the official CrowdSec image setup and daemon ..."
+    LEVEL_ERROR=true /bin/bash "$CROWDSEC_DOCKER_START_SCRIPT" >"$CROWDSEC_ENGINE_LOG" 2>&1 &
     CS_PID=$!
     log "CrowdSec PID: $CS_PID"
 
     # Wait for LAPI to be reachable
     log "Waiting for LAPI at $LOCAL_API_URL ..."
-    for i in $(seq 1 30); do
+    LAPI_READY=0
+    for i in $(seq 1 "$CROWDSEC_STARTUP_TIMEOUT_SECONDS"); do
         if curl -fsS "$LOCAL_API_URL/health" >/dev/null 2>&1; then
             log "LAPI is up (after ${i}s)"
+            LAPI_READY=1
             break
+        fi
+        if ! kill -0 "$CS_PID" 2>/dev/null; then
+            log "ERROR: CrowdSec startup exited before LAPI became ready. See $CROWDSEC_ENGINE_LOG."
+            exit 1
         fi
         sleep 1
     done
+    if [ "$LAPI_READY" -ne 1 ]; then
+        log "ERROR: LAPI did not become ready at $LOCAL_API_URL within $CROWDSEC_STARTUP_TIMEOUT_SECONDS seconds. See $CROWDSEC_ENGINE_LOG."
+        kill "$CS_PID" 2>/dev/null || true
+        exit 1
+    fi
 fi
 
-# --- 3. Register the manager as a bouncer (idempotent) ---
+# --- 2. Load or register the manager bouncer key ---
+if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ] && [ -s "$BOUNCER_KEY_FILE" ]; then
+    IFS= read -r CROWDSEC_BOUNCER_APIKEY < "$BOUNCER_KEY_FILE" || true
+    if [ -n "$CROWDSEC_BOUNCER_APIKEY" ]; then
+        log "Loaded persisted bouncer key."
+    fi
+fi
+
 if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ]; then
     log "Registering crowdsec-manager bouncer ..."
     if reg=$(cscli bouncers add crowdsec-manager -o raw 2>/dev/null); then
@@ -90,6 +112,11 @@ if [ -z "${CROWDSEC_BOUNCER_APIKEY:-}" ]; then
         export CROWDSEC_BOUNCER_APIKEY="$(echo "$reg" | grep -E '^[A-Za-z0-9/+=]{20,}$' | head -n1 | tr -d '[:space:]')"
         if [ -n "$CROWDSEC_BOUNCER_APIKEY" ]; then
             log "Bouncer key registered (length: ${#CROWDSEC_BOUNCER_APIKEY})"
+            key_tmp="$(mktemp "${BOUNCER_KEY_FILE}.XXXXXX")"
+            chmod 0600 "$key_tmp"
+            printf '%s\n' "$CROWDSEC_BOUNCER_APIKEY" > "$key_tmp"
+            mv -f -- "$key_tmp" "$BOUNCER_KEY_FILE"
+            log "Bouncer key saved to persistent application storage."
         else
             log "WARNING: could not parse bouncer API key from cscli output"
         fi
@@ -102,12 +129,12 @@ fi
 # registration too, because registration may have generated the token above.
 export CrowdSec__BouncerApiKey="${CROWDSEC_BOUNCER_APIKEY:-}"
 
-# --- 4. Verify an admin password was provided ---
+# --- 3. Verify an admin password was provided ---
 if [ -z "${ADMIN_PASSWORD:-}" ]; then
     log "WARNING: ADMIN_PASSWORD is not set. The admin user will not be seeded."
     log "         Set ADMIN_USER / ADMIN_PASSWORD env vars to log in."
 fi
 
-# --- 5. Start the ASP.NET Blazor app in the foreground ---
+# --- 4. Start the ASP.NET Blazor app in the foreground ---
 log "Starting CrowdSec Manager on http://0.0.0.0:8081 ..."
 exec dotnet /app/CrowdSecManager.dll

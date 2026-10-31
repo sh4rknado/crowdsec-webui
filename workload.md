@@ -34,16 +34,17 @@ breaks if I touch X".
 ```
 PID 1:  tini -> entrypoint.sh
           |
-          +---> crowdsec -error    (background)        # Log processor + Local API (port 8080)
+          +---> /bin/bash /docker_start.sh (background)
+                    └── exec crowdsec -error         # Log processor + Local API (port 8080)
           +---> dotnet CrowdSecManager.dll             # Blazor UI (port 8081) - foreground
 ```
 
 The `entrypoint.sh` script (run by `tini` as PID 1) is responsible for:
 
 1. Creating bind-mount target directories.
-2. Bootstrapping a CrowdSec config with `cscli config gen` if `/etc/crowdsec/config.yaml` does not exist.
-3. Registering `crowdsec-manager` as a CrowdSec bouncer via `cscli bouncers add` and exporting its API key to `CROWDSEC_BOUNCER_APIKEY`.
-4. Starting the `crowdsec` daemon in the background; it serves the Local API itself.
+2. Starting the official CrowdSec image initializer, which populates an empty `/etc/crowdsec` from `/staging/etc/crowdsec`, registers the local machine and then execs `crowdsec`; `cscli config gen` is not a supported CrowdSec command.
+3. Waiting up to 120 seconds for the Local API health endpoint before registering `crowdsec-manager` as a bouncer; CrowdSec startup logs go to container stdout/stderr and therefore `journalctl`.
+4. Persisting an auto-generated bouncer API key in the manager data volume so container restarts reuse the same credential.
 5. Mapping the bouncer key and deployment paths into ASP.NET configuration variables.
 6. `exec`ing `dotnet CrowdSecManager.dll` as the foreground process so termination signals propagate correctly.
 

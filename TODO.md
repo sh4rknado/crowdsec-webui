@@ -22,6 +22,7 @@
 - [x] Une action explicite permet d’envoyer `SIGHUP` au processus CrowdSec du même conteneur après des changements.
 - [x] L’éditeur peut demander au moteur CrowdSec de valider la configuration sauvegardée avec `crowdsec -t -c <configDir>/config.yaml`.
 - [x] Script d’hôte ajouté pour reconstruire avec `crowdsecurity/crowdsec:latest` (`podman build --pull=always`) et redémarrer le service Quadlet.
+- [x] Corriger l’amorçage in-container : remplacer la commande inexistante `cscli config gen` par l’initialiseur officiel `/docker_start.sh` de l’image, attendre jusqu’à 120 s le health endpoint LAPI, envoyer les logs CrowdSec à stdout (le volume `/var/log` est en lecture seule) et persister la clé bouncer générée sur le volume applicatif.
 - [x] Client LAPI utilise les routes versionnées `/v1/decisions`; les alertes utilisent `cscli`, car une clé bouncer ne donne pas accès à la recherche d’alertes.
 - [x] Suppression de décision par ID utilise `--id`; suppression d’alerte utilise `alerts delete --id`.
 - [x] Ajout de décision choisit `--range` pour une valeur CIDR et `--ip` pour une IP seule.
@@ -46,7 +47,8 @@
 
 - [ ] Exécuter `sudo bash deploy/update-image.sh` sur un hôte Linux Podman et valider l’image actualisée, le runtime .NET et l’état du Quadlet.
 - [x] Vérifier la syntaxe Bash (`bash -n`) des trois scripts `deploy/update-image.sh`, `deploy/install-quadlet.sh` et `deploy/entrypoint.sh` avec Git Bash ; Podman/systemd restent absents ici.
-- [x] Tester le démarrage isolé de `deploy/entrypoint.sh` avec `cscli`/`dotnet` remplacés par des stubs : branche side-by-side sans bootstrap, propagation des chemins, de l’URL LAPI, du token bouncer et des coordonnées GeoIP (17 assertions).
+- [x] Tester le démarrage isolé de `deploy/entrypoint.sh` avec `cscli`/`dotnet` remplacés par des stubs : branche side-by-side sans bootstrap, propagation des chemins, de l’URL LAPI, du token bouncer, des coordonnées GeoIP et rejet d’un timeout non valide (19 assertions).
+- [x] Tester avec un faux initialiseur d’image le démarrage CrowdSec et la reprise de la clé bouncer après redémarrage ; 9 assertions vérifient l’appel à l’init, la préparation config/LAPI, la transmission de la clé en mode `0600` et l’absence de seconde inscription.
 - [x] Tester les garde-fous des scripts `deploy/update-image.sh` et `deploy/install-quadlet.sh` : les deux refusent un lancement non-root avant toute action (2 assertions).
 - [ ] Effectuer le smoke test du `workload.md` sur un hôte Linux avec systemd / Podman et vérifier l’état du service Quadlet.
 - [ ] Valider l’amorçage de CrowdSec, la disponibilité LAPI et les commandes `cscli` avec une instance réelle.

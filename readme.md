@@ -348,6 +348,8 @@ what you need.
 | `ADMIN_USER` | `admin` | First-boot admin username |
 | `ADMIN_PASSWORD` | *(unset)* | First-boot admin password (REQUIRED on first start) |
 | `CROWDSEC_BOUNCER_APIKEY` | *(auto)* | Pre-set the bouncer API key instead of auto-registering |
+| `CrowdSec__BouncerApiKeyFile` | `<Database:Path directory>/crowdsec-manager-bouncer.key` | Persistent file for the auto-generated bouncer key (mode `0600`) |
+| `CROWDSEC_STARTUP_TIMEOUT_SECONDS` | `120` | Maximum wait for the bundled CrowdSec image initializer and LAPI health check |
 | `CROWDSEC_CONFIG_DIR` | `/etc/crowdsec` | Path to crowdsec config |
 | `CROWDSEC_DATA_DIR` | `/var/lib/crowdsec/data` | Path to crowdsec data |
 | `HOME_LATITUDE` / `HOME_LONGITUDE` / `HOME_LABEL` | Brussels | Home marker on the threat map |
@@ -384,7 +386,7 @@ Linux; protect the containing host volume accordingly.
 | --- | --- | --- |
 | UI loads but `CrowdSec LAPI: offline` in footer | CrowdSec daemon not running in the container or on the host | `podman exec crowdsec-manager cscli lapi status`; if `Service is not running`, start it: `podman exec crowdsec-manager crowdsec` |
 | Threat map stays empty | No alerts in CrowdSec, or GeoLite2 not installed (still works with fallback) | `cscli alerts list` to confirm; optionally drop GeoLite2 at `/var/lib/GeoIP/` |
-| `401 Unauthorized` from LAPI in logs | Bouncer API key missing or wrong | `podman exec crowdsec-manager cscli bouncers list`; if `crowdsec-manager` is not listed, restart the container (entrypoint re-registers) |
+| `401 Unauthorized` from LAPI in logs | Bouncer API key missing, stale or from another LAPI | Check that the CrowdSec and manager data volumes are persistent and belong to the same deployment. If the CrowdSec database was reset, remove `/var/lib/crowdsec-manager/crowdsec-manager-bouncer.key` from the manager data volume and restart so the entrypoint registers a new key. |
 | `cscli: command not found` | Wrong base image or runtime stage stripped cscli | Rebuild from the official `crowdsecurity/crowdsec` base image (see Dockerfile stage 2) |
 | YAML save fails with "not in the editable whitelist" | File is outside the approved CrowdSec config paths | Keep edits under `/etc/crowdsec` or extend `ConfigFileService`'s approved paths |
 | Login page loops after sign-in | Cookie not set (SecurePolicy mismatch over HTTP) | Either use HTTPS, or set `CookieSecurePolicy.SameAsRequest` (already default) and ensure the reverse proxy forwards the correct scheme |

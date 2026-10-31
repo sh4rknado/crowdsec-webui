@@ -87,4 +87,11 @@ assert_line 'GeoIp__HomeLatitude=48.8566'
 assert_line 'GeoIp__HomeLongitude=2.3522'
 assert_line 'GeoIp__HomeLabel=Test host'
 
-echo 'Entrypoint environment mapping passed (17 assertions).'
+set +e
+invalid_timeout_output="$(CROWDSEC_STARTUP_TIMEOUT_SECONDS=0 "${BASH}" "${entrypoint}" 2>&1)"
+invalid_timeout_status=$?
+set -e
+[[ "${invalid_timeout_status}" -eq 1 ]]
+[[ "${invalid_timeout_output}" == *'CROWDSEC_STARTUP_TIMEOUT_SECONDS must be a positive integer.'* ]]
+
+echo 'Entrypoint environment mapping passed (19 assertions).'
