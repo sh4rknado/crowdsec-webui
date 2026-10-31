@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const scriptPath = fileURLToPath(new URL("../../src/CrowdSecManager/wwwroot/js/threatmap.js", import.meta.url));
 const threatMapSource = readFileSync(scriptPath, "utf8");
 
-function createHarness() {
+function createHarness({ fetchImpl, fireTimeoutImmediately = false } = {}) {
     const clock = { now: 1000, performance: 0 };
     const maps = [];
     const frames = [];
@@ -49,10 +49,15 @@ function createHarness() {
         document,
         Map: ObservedMap,
         Date: FakeDate,
+        AbortController,
         performance: { now: () => clock.performance },
         requestAnimationFrame: callback => { frames.push(callback); return frames.length; },
         cancelAnimationFrame() {},
-        fetch: async () => { throw new Error("offline test fixture"); },
+        setTimeout: fireTimeoutImmediately
+            ? callback => { callback(); return 0; }
+            : (callback, delay) => setTimeout(callback, delay),
+        clearTimeout: timeoutId => clearTimeout(timeoutId),
+        fetch: fetchImpl || (async () => { throw new Error("offline test fixture"); }),
         console: { warn() {}, log() {}, error() {} }
     };
     vm.runInNewContext(threatMapSource, sandbox, { filename: "threatmap.js" });
@@ -103,9 +108,28 @@ async function eachArcCreatesOneImpactRipple() {
 }
 test("each animated arc creates at most one impact ripple", eachArcCreatesOneImpactRipple);
 
+async function mapBackgroundFallsBackWhenFetchTimesOut() {
+    let requestSignal;
+    const { api, frames } = createHarness({
+        fireTimeoutImmediately: true,
+        fetchImpl: async (_url, options) => {
+            requestSignal = options.signal;
+            if (requestSignal.aborted) throw new Error("request aborted by timeout");
+            throw new Error("expected timeout to abort request");
+        }
+    });
+
+    await api.init("threatCanvas", {});
+
+    assert.equal(requestSignal.aborted, true);
+    assert.equal(frames.length, 1);
+}
+test("world map fetch timeout uses the dot fallback", mapBackgroundFallsBackWhenFetchTimesOut);
+
 export async function runThreatMapAssertions() {
     await sourceMarkersStayBounded();
     await expiredStateIsRemoved();
     await eachArcCreatesOneImpactRipple();
-    return "3 threat map JavaScript assertions passed";
+    await mapBackgroundFallsBackWhenFetchTimesOut();
+    return "4 threat map JavaScript assertions passed";
 }

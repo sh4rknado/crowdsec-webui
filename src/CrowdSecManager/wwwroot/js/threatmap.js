@@ -31,6 +31,7 @@
     const MAX_ARCS = 60;
     const MAX_SOURCES = 300;
     const SOURCE_RETENTION_MS = 60_000;
+    const WORLD_MAP_FETCH_TIMEOUT_MS = 4000;
 
     // ---- Equirectangular projection ----
     function project(lat, lon) {
@@ -42,8 +43,10 @@
     // ---- World map loading ----
     async function loadWorldTopo() {
         const cdn = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), WORLD_MAP_FETCH_TIMEOUT_MS);
         try {
-            const r = await fetch(cdn, { cache: "force-cache" });
+            const r = await fetch(cdn, { cache: "force-cache", signal: controller.signal });
             if (!r.ok) throw new Error("HTTP " + r.status);
             const topo = await r.json();
             // Minimal TopoJSON -> GeoJSON FeatureCollection
@@ -52,6 +55,8 @@
         } catch (e) {
             console.warn("threatmap: world-atlas CDN unreachable, using dot fallback", e);
             return null;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
