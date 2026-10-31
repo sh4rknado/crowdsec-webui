@@ -6,7 +6,7 @@
 #   2. Optionally bootstrap a fresh CrowdSec install if /etc/crowdsec is empty.
 #   3. Start the CrowdSec daemon (which serves both the log processor and LAPI).
 #   4. Register the manager as a bouncer so the LAPI client can authenticate.
-#   5. Start the ASP.NET Blazor app in the foreground.
+#   5. Supervise CrowdSec and ASP.NET; stop the sibling process when either exits.
 #
 # Env vars (override via Quadlet / podman run -e):
 #   ADMIN_USER               default admin username (default: admin)
@@ -59,6 +59,24 @@ mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$MANAGER_DB_DIR" "$(dirname "$BOUNCER_KEY_FI
 
 log() { echo "[entrypoint] $*"; }
 
+APP_PID=""
+SHUTDOWN_REQUESTED=0
+
+shutdown_children() {
+    SHUTDOWN_REQUESTED=1
+    log "Stopping CrowdSec Manager processes ..."
+    if [ -n "${APP_PID:-}" ]; then kill -TERM "$APP_PID" 2>/dev/null || true; fi
+    if [ -n "${CS_PID:-}" ]; then kill -TERM "$CS_PID" 2>/dev/null || true; fi
+}
+
+trap shutdown_children TERM INT
+
+process_is_running() {
+    local state
+    state="$(ps -o stat= -p "$1" 2>/dev/null || true)"
+    [ -n "$state" ] && [[ "$state" != Z* ]]
+}
+
 # --- 1. Initialize and start the bundled CrowdSec engine ---
 if [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
     if [ ! -f "$CONFIG_DIR/config.yaml" ] && [ ! -f "$CROWDSEC_STAGING_CONFIG_DIR/config.yaml" ]; then
@@ -79,20 +97,26 @@ if [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
     log "Waiting for LAPI at $LOCAL_API_URL ..."
     LAPI_READY=0
     for i in $(seq 1 "$CROWDSEC_STARTUP_TIMEOUT_SECONDS"); do
+        if [ "$SHUTDOWN_REQUESTED" -eq 1 ]; then
+            if wait "$CS_PID"; then :; else :; fi
+            exit 0
+        fi
+        if ! process_is_running "$CS_PID"; then
+            log "ERROR: CrowdSec startup exited before LAPI became ready. See $CROWDSEC_ENGINE_LOG."
+            if wait "$CS_PID"; then :; else :; fi
+            exit 1
+        fi
         if curl -fsS "$LOCAL_API_URL/health" >/dev/null 2>&1; then
             log "LAPI is up (after ${i}s)"
             LAPI_READY=1
             break
-        fi
-        if ! kill -0 "$CS_PID" 2>/dev/null; then
-            log "ERROR: CrowdSec startup exited before LAPI became ready. See $CROWDSEC_ENGINE_LOG."
-            exit 1
         fi
         sleep 1
     done
     if [ "$LAPI_READY" -ne 1 ]; then
         log "ERROR: LAPI did not become ready at $LOCAL_API_URL within $CROWDSEC_STARTUP_TIMEOUT_SECONDS seconds. See $CROWDSEC_ENGINE_LOG."
         kill "$CS_PID" 2>/dev/null || true
+        if wait "$CS_PID"; then :; else :; fi
         exit 1
     fi
 fi
@@ -129,12 +153,52 @@ fi
 # registration too, because registration may have generated the token above.
 export CrowdSec__BouncerApiKey="${CROWDSEC_BOUNCER_APIKEY:-}"
 
+if [ "$SHUTDOWN_REQUESTED" -eq 1 ]; then
+    if [ -n "${CS_PID:-}" ]; then
+        if wait "$CS_PID"; then :; else :; fi
+    fi
+    exit 0
+fi
+
 # --- 3. Verify an admin password was provided ---
 if [ -z "${ADMIN_PASSWORD:-}" ]; then
     log "WARNING: ADMIN_PASSWORD is not set. The admin user will not be seeded."
     log "         Set ADMIN_USER / ADMIN_PASSWORD env vars to log in."
 fi
 
-# --- 4. Start the ASP.NET Blazor app in the foreground ---
+# --- 4. Start ASP.NET and supervise both long-running processes ---
 log "Starting CrowdSec Manager on http://0.0.0.0:8081 ..."
-exec dotnet /app/CrowdSecManager.dll
+dotnet /app/CrowdSecManager.dll &
+APP_PID=$!
+
+if [ -n "${CS_PID:-}" ]; then
+    EXITED_PID=""
+    if wait -n -p EXITED_PID "$APP_PID" "$CS_PID"; then
+        EXITED_STATUS=0
+    else
+        EXITED_STATUS=$?
+    fi
+
+    if [ "$SHUTDOWN_REQUESTED" -eq 1 ]; then
+        if wait "$APP_PID"; then :; else :; fi
+        if wait "$CS_PID"; then :; else :; fi
+        exit 0
+    fi
+
+    if [ "$EXITED_PID" = "$CS_PID" ]; then
+        log "ERROR: CrowdSec exited while the manager was running. Restarting the container is required."
+        kill -TERM "$APP_PID" 2>/dev/null || true
+        if wait "$APP_PID"; then :; else :; fi
+        exit 1
+    fi
+
+    kill -TERM "$CS_PID" 2>/dev/null || true
+    if wait "$CS_PID"; then :; else :; fi
+    exit "$EXITED_STATUS"
+fi
+
+if wait "$APP_PID"; then
+    exit 0
+else
+    exit $?
+fi

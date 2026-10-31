@@ -384,7 +384,7 @@ Linux; protect the containing host volume accordingly.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| UI loads but `CrowdSec LAPI: offline` in footer | CrowdSec daemon not running in the container or on the host | `podman exec crowdsec-manager cscli lapi status`; if `Service is not running`, start it: `podman exec crowdsec-manager crowdsec` |
+| UI loads but `CrowdSec LAPI: offline` in footer | CrowdSec daemon not running in the container or on the host | Check `sudo journalctl -u crowdsec-manager -f`; in bundled-engine mode the entrypoint stops the UI when CrowdSec exits and Quadlet restarts the container. In side-by-side mode, check/restart the host CrowdSec service. |
 | Threat map stays empty | No alerts in CrowdSec, or GeoLite2 not installed (still works with fallback) | `cscli alerts list` to confirm; optionally drop GeoLite2 at `/var/lib/GeoIP/` |
 | `401 Unauthorized` from LAPI in logs | Bouncer API key missing, stale or from another LAPI | Check that the CrowdSec and manager data volumes are persistent and belong to the same deployment. If the CrowdSec database was reset, remove `/var/lib/crowdsec-manager/crowdsec-manager-bouncer.key` from the manager data volume and restart so the entrypoint registers a new key. |
 | `cscli: command not found` | Wrong base image or runtime stage stripped cscli | Rebuild from the official `crowdsecurity/crowdsec` base image (see Dockerfile stage 2) |

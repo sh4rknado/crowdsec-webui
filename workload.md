@@ -36,7 +36,7 @@ PID 1:  tini -> entrypoint.sh
           |
           +---> /bin/bash /docker_start.sh (background)
                     └── exec crowdsec -error         # Log processor + Local API (port 8080)
-          +---> dotnet CrowdSecManager.dll             # Blazor UI (port 8081) - foreground
+          +---> dotnet CrowdSecManager.dll             # Blazor UI (port 8081), supervised
 ```
 
 The `entrypoint.sh` script (run by `tini` as PID 1) is responsible for:
@@ -255,7 +255,7 @@ sudo firewall-cmd --reload
 
 | Failure | Detection | Impact | Recovery |
 | --- | --- | --- | --- |
-| `crowdsec` daemon exits | `entrypoint.sh` background process dies; `cscli alerts list` returns non-zero | Threat map stops updating; CLI-based pages (Decisions/Hub/...) return errors | `podman restart crowdsec-manager` (entrypoint re-launches daemon) |
+| `crowdsec` daemon exits | The entrypoint's `wait -n` supervisor observes the engine process exit | The manager is stopped and the container exits non-zero so systemd's `Restart=always` recovers the whole service | Inspect `sudo journalctl -u crowdsec-manager -f`; fix the CrowdSec error and let systemd restart the Quadlet |
 | LAPI unreachable (port 8080 down) | `CrowdSecApiService.IsReachableAsync()` returns false; footer shows "offline" | Threat map falls back to `cscli` polling (slower); dashboard stats degrade | `podman exec crowdsec-manager cscli lapi status`; restart LAPI |
 | MaxMind DB missing | `GeoIpService.IsDatabaseAvailable == false`; dashboard card "GeoIP DB: missing" | Threat map plots IPs at hash-derived fallback locations | Drop `GeoLite2-City.mmdb` at `/var/lib/GeoIP/` and restart container |
 | cscli binary missing | `CrowdSecCliService.RunAsync` returns exit code -1 with "Failed to start cscli" | All hub/decisions/bouncers/machines pages fail with descriptive error | Rebuild the image; ensure the Dockerfile stage 2 is based on `crowdsecurity/crowdsec:latest` |

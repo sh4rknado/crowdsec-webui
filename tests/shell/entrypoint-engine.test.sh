@@ -41,6 +41,15 @@ starts="$(wc -l <"${ENGINE_CAPTURE}")"
 [[ "${starts}" -ge "${EXPECTED_ENGINE_STARTS}" ]]
 STUB
 
+cat >"${stubs}/ps" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${ENGINE_TEST_MODE:-hold}" == 'exit' ]]; then
+    printf 'Z\n'
+else
+    printf 'S\n'
+fi
+STUB
+
 cat >"${stubs}/cscli" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"${CSCLI_CAPTURE}"
@@ -59,15 +68,24 @@ cat >"${stubs}/dotnet" <<'STUB'
     printf 'ARG=%s\n' "$@"
     printf 'BOUNCER_KEY=%s\n' "${CrowdSec__BouncerApiKey:-}"
 } >"${APP_CAPTURE}"
+if [[ "${APP_TEST_MODE:-exit}" == 'hold' ]]; then
+    exec sleep 30
+fi
 STUB
 
 cat >"${engine_script}" <<'STUB'
 #!/usr/bin/env bash
-printf 'LEVEL_ERROR=%s CONFIG=%s\n' "${LEVEL_ERROR:-}" "${CrowdSec__ConfigDir}" >>"${ENGINE_CAPTURE}"
+printf 'START|PID=%s LEVEL_ERROR=%s CONFIG=%s\n' "$$" "${LEVEL_ERROR:-}" "${CrowdSec__ConfigDir}" >>"${ENGINE_CAPTURE}"
 cp -an "${CROWDSEC_STAGING_CONFIG_DIR}/." "${CrowdSec__ConfigDir}/"
+if [[ "${ENGINE_TEST_MODE:-hold}" == 'exit' ]]; then exit 0; fi
+if [[ "${ENGINE_TEST_MODE:-hold}" == 'crash_after_app' ]]; then
+    while [[ ! -f "${APP_CAPTURE}" ]]; do sleep 0.05; done
+    exit 0
+fi
+exec sleep 30
 STUB
 
-"${real_chmod}" +x "${stubs}/mkdir" "${stubs}/curl" "${stubs}/cscli" "${stubs}/chmod" "${stubs}/dotnet" "${engine_script}"
+"${real_chmod}" +x "${stubs}/mkdir" "${stubs}/curl" "${stubs}/ps" "${stubs}/cscli" "${stubs}/chmod" "${stubs}/dotnet" "${engine_script}"
 export PATH="${stubs}:${PATH}"
 export ENGINE_CAPTURE="${engine_capture}"
 export CSCLI_CAPTURE="${cli_capture}"
@@ -77,6 +95,8 @@ export APP_CAPTURE="${app_capture}"
 
 run_engine_start() {
     EXPECTED_ENGINE_STARTS="$1" \
+    ENGINE_TEST_MODE="${2:-hold}" \
+    APP_TEST_MODE="${3:-exit}" \
     ADMIN_PASSWORD='test-password' \
     Database__Path="${tmp_dir}/app.db" \
     CrowdSec__ConfigDir="${config_dir}" \
@@ -89,18 +109,43 @@ run_engine_start() {
     "${BASH}" "${entrypoint}" >"${tmp_dir}/entrypoint.log"
 }
 
-run_engine_start 1
+assert_process_stopped() {
+    local process_id="$1"
+    if kill -0 "$process_id" 2>/dev/null; then
+        echo "Expected supervised process ${process_id} to be stopped." >&2
+        exit 1
+    fi
+}
+
+if ! run_engine_start 1; then cat "${tmp_dir}/entrypoint.log" >&2; exit 1; fi
 [[ "$(cat "${key_file}")" == 'BouncerKeyForTests0123456789' ]]
 chmod_call="$(grep '^0600 ' "${chmod_capture}")"
 [[ "${chmod_call}" == "0600 ${key_file}."* ]]
 [[ "$(wc -l <"${cli_capture}")" -eq 1 ]]
 grep -Fqx 'BOUNCER_KEY=BouncerKeyForTests0123456789' "${app_capture}"
-grep -Fqx "LEVEL_ERROR=true CONFIG=${config_dir}" "${engine_capture}"
+grep -Fq "LEVEL_ERROR=true CONFIG=${config_dir}" "${engine_capture}"
+engine_pid="$(sed -n 's/^START|PID=\([0-9][0-9]*\).*/\1/p' "${engine_capture}" | head -n1)"
+assert_process_stopped "${engine_pid}"
 
 run_engine_start 2
 [[ "$(wc -l <"${cli_capture}")" -eq 1 ]]
-[[ "$(wc -l <"${engine_capture}")" -eq 2 ]]
+[[ "$(grep -c '^START|' "${engine_capture}")" -eq 2 ]]
+engine_pid="$(sed -n 's/^START|PID=\([0-9][0-9]*\).*/\1/p' "${engine_capture}" | tail -n1)"
+assert_process_stopped "${engine_pid}"
 grep -Fq 'Loaded persisted bouncer key.' "${tmp_dir}/entrypoint.log"
 grep -Fqx 'BOUNCER_KEY=BouncerKeyForTests0123456789' "${app_capture}"
 
-echo 'Bundled engine startup and persisted bouncer key passed (9 assertions).'
+set +e
+rm -f "${app_capture}"
+run_engine_start 3 crash_after_app hold
+crash_status=$?
+set -e
+[[ "${crash_status}" -eq 1 ]]
+if ! grep -Fq 'CrowdSec exited while the manager was running.' "${tmp_dir}/entrypoint.log"; then
+    cat "${tmp_dir}/entrypoint.log" >&2
+    exit 1
+fi
+[[ "$(grep -c '^START|' "${engine_capture}")" -eq 3 ]]
+[[ "$(grep -c 'bouncers add' "${cli_capture}")" -eq 1 ]]
+
+echo 'Bundled engine supervision and persisted bouncer key passed (16 assertions).'
