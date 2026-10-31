@@ -50,6 +50,10 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
             using var resp = await _http.GetAsync("health", ct);
             return resp.IsSuccessStatusCode || resp.StatusCode == System.Net.HttpStatusCode.NotFound;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _log.LogDebug("LAPI unreachable: {Msg}", ex.Message);
@@ -87,6 +91,10 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
                 .OrderByDescending(g => g.Count())
                 .Take(8)
                 .ToDictionary(g => g.Key!, g => g.Count());
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

@@ -35,8 +35,8 @@
 - [x] `dotnet build src/CrowdSecManager.sln` réussit sans erreur après restauration NuGet.
 - [x] `dotnet publish src/CrowdSecManager/CrowdSecManager.csproj -c Release /p:UseAppHost=false --no-restore` réussit et génère l’assembly utilisé par l’étape Docker.
 - [x] Le build s’effectue sans avertissement après correction de l’annotation nullable.
-- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 84 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
-- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 84 tests.
+- [x] `dotnet test src/CrowdSecManager.sln -c Release` : 86 tests réussis, 0 échoué, 0 ignoré ; projet applicatif compilé.
+- [x] Vérification Release : `dotnet build src/CrowdSecManager.sln -c Release` réussit avec 0 avertissement/erreur ; `dotnet publish ... -c Release /p:UseAppHost=false --no-restore` réussit ; toute la suite Release passe les 86 tests.
 - [x] Tests JavaScript du renderer exécutés dans le runtime Node de la session : 4 assertions passent sur le plafond/LRU des sources, leur expiration, le compteur/ripple et le timeout CDN (`tests/javascript/threatmap.test.mjs`).
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
@@ -51,6 +51,7 @@
 - [x] Tester avec TestServer l’endpoint applicatif `/health` (HTTP 200 + JSON).
 - [ ] Tester le LAPI `/v1/decisions` sur CrowdSec réel avec une vraie clé bouncer.
 - [x] Tester sans réseau réel le client LAPI : endpoint `/health`, route versionnée `/v1/decisions`, en-tête Bearer et repli cscli quand l’API échoue.
+- [x] Propager l’annulation du client LAPI pour les sondes et les statistiques au lieu de la traiter comme une panne réseau/repli ; deux tests vérifient l’annulation et l’absence d’appel CLI.
 - [x] Relier les variables legacy `CROWDSEC_BOUNCER_APIKEY`, `LOCAL_API_URL`, chemins GeoIP/CrowdSec et coordonnées de la carte aux clés de configuration ASP.NET ; tests de mapping et priorité `.NET` inclus.
 - [x] Supprimer le mot de passe administrateur faible présent par défaut dans le Quadlet et ajouter un test de régression.
 - [x] Refuser le démarrage initial sans `ADMIN_PASSWORD` et échouer clairement si l’identité ou le rôle administrateur ne peut pas être initialisé.

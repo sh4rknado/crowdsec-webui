@@ -49,6 +49,29 @@ public sealed class CrowdSecApiServiceTests
     }
 
     [Fact]
+    public async Task IsReachable_PropagatesCallerCancellationInsteadOfReportingOffline()
+    {
+        using var http = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        var (service, _) = CreateService(http);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.IsReachableAsync(cancellation.Token));
+    }
+
+    [Fact]
+    public async Task GetSnapshotStats_PropagatesCallerCancellation()
+    {
+        using var http = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        var (service, cli) = CreateService(http);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetSnapshotStatsAsync(cancellation.Token));
+        Assert.Equal(0, cli.DecisionCalls);
+    }
+
+    [Fact]
     public async Task GetDecisions_FallsBackToCliWhenLapiRequestFails()
     {
         var fallback = new[] { new CsDecision { Id = 71 } };
