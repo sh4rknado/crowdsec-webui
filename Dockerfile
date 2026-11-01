@@ -68,6 +68,12 @@ RUN apk add --no-cache \
     && ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet \
     && rm -f /tmp/dotnet-install.sh
 
+# The official CrowdSec image ships cscli + crowdsec under /usr/local/bin.
+# Add /usr/bin symlinks so any config still pointing at /usr/bin/cscli keeps
+# working (belt-and-suspenders alongside the corrected defaults in Options.cs).
+RUN ln -sf /usr/local/bin/cscli /usr/bin/cscli \
+    && ln -sf /usr/local/bin/crowdsec /usr/bin/crowdsec
+
 ENV DOTNET_ROOT=/usr/share/dotnet \
     DOTNET_RUNNING_IN_CONTAINER=true \
     ASPNETCORE_URLS=http://+:8081 \
