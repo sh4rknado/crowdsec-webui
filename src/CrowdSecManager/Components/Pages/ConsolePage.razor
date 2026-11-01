@@ -1,107 +1,250 @@
 @page "/console"
 @attribute [Authorize]
 @inject ICrowdSecCliService Cli
-@inject ILogger<ConsolePage> Log
+@inject IJSRuntime JS
+@implements IDisposable
 
-<PageTitle>Console &middot; CrowdSec Manager</PageTitle>
+<PageTitle>Terminal &middot; CrowdSec Manager</PageTitle>
 
-<section class="card">
+<section class="card terminal-card">
     <header>
-        <h2>CrowdSec Console (Central API)</h2>
+        <h2>crowdsec-cli terminal</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
-            <button class="btn" disabled="@_busy" @onclick="EnableAlerts">Enable alert sharing</button>
-            <button class="btn danger" disabled="@_busy" @onclick="DisableAlerts">Disable alert sharing</button>
+            <button class="btn ghost small" disabled="@_busy" @onclick="Clear">Clear</button>
+            <button class="btn ghost small" disabled="@_busy" @onclick="ShowHelp">Help</button>
         </div>
     </header>
 
-    @if (string.IsNullOrEmpty(_statusOutput))
-    {
-        <p class="muted">Click "Refresh" to query the CrowdSec Console registration status.</p>
-    }
-    else
-    {
-        <details class="raw" open>
-            <summary>cscli console status</summary>
-            <pre class="mono">@_statusOutput</pre>
-        </details>
-    }
-
-    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+    <div class="terminal" id="cs-terminal">
+        <div class="terminal-output" @ref="_outputRef">
+            @foreach (var line in _lines)
+            {
+                <div class="tline @line.Class">
+                    @if (line.IsPrompt)
+                    {
+                        <span class="tprompt">cscli&nbsp;&#10095;</span>
+                    }
+                    <span class="ttext">@line.Text</span>
+                </div>
+            }
+            @if (_busy)
+            {
+                <div class="tline muted"><span class="ttext">running...</span></div>
+            }
+        </div>
+        <div class="terminal-input">
+            <span class="tprompt">cscli&nbsp;&#10095;</span>
+            <input id="cs-terminal-input"
+                   type="text"
+                   autocomplete="off"
+                   autocapitalize="off"
+                   autocorrect="off"
+                   spellcheck="false"
+                   placeholder="decisions list   (type 'help' for common commands)"
+                   value="@_input"
+                   @oninput="OnInput"
+                   @onkeydown="OnKeyDown"
+                   disabled="@_busy" />
+        </div>
+    </div>
 </section>
 
 <section class="card">
-    <header><h2>About the CrowdSec Console</h2></header>
+    <header><h2>About this terminal</h2></header>
     <div class="muted small">
         <p>
-            The <a href="https://app.crowdsec.net" target="_blank" rel="noopener">CrowdSec Console</a>
-            is the central SaaS where you can:
-        </p>
-        <ul>
-            <li>Aggregate alerts and decisions across multiple CrowdSec instances</li>
-            <li>Share threat intelligence with the community (anonymised by default)</li>
-            <li>Receive curated CTI (Community Threat Intelligence) feeds back</li>
-        </ul>
-        <p>
-            Registration requires a free CrowdSec account. Once registered, the local
-            <code class="mono">/etc/crowdsec/online_api_credentials.yaml</code> file holds the
-            authentication material. Use <em>Configuration</em> to inspect it.
+            This is a real <code class="mono">cscli</code> terminal running inside the container.
+            Whatever you type is forwarded to the <code class="mono">cscli</code> binary as argv
+            tokens (no shell), so shell metacharacters such as <code class="mono">;</code>,
+            <code class="mono">|</code> or <code class="mono">&amp;</code> cannot break out of cscli.
+            Output is raw (no forced <code class="mono">-o json</code>): add
+            <code class="mono">-o json</code> yourself when you want machine-readable output.
         </p>
         <p>
-            <strong>Enable alert sharing</strong> pushes your alerts to the Console (recommended).
-            <strong>Disable alert sharing</strong> stops pushing but keeps the registration.
+            Built-in commands handled locally (not sent to cscli):
+            <code class="mono">help</code>, <code class="mono">clear</code>, <code class="mono">history</code>.
+            Use <kbd>&#8593;</kbd> / <kbd>&#8595;</kbd> to recall previous commands.
         </p>
     </div>
 </section>
 
 @code {
-    private string _statusOutput = "";
+    private sealed class TLine
+    {
+        public string Text { get; set; } = "";
+        public string Class { get; set; } = "";
+        public bool IsPrompt { get; set; }
+    }
+
+    private readonly List<TLine> _lines = new();
+    private readonly List<string> _history = new();
+    private string _input = "";
     private bool _busy;
-    private string? _msg; private bool _err;
+    private int _historyCursor = -1;   // -1 = not browsing history
+    private ElementReference _outputRef;
+    private CancellationTokenSource? _cts;
 
-    protected override async Task OnInitializedAsync() => await Refresh();
-
-    private async Task Refresh()
+    protected override void OnInitialized()
     {
-        _busy = true; _msg = null;
-        try
-        {
-            var r = await Cli.ConsoleStatusAsync();
-            _statusOutput = r.Success
-                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-        }
-        catch (Exception ex) { Log.LogDebug("console status: {Msg}", ex.Message); }
-        finally { _busy = false; }
+        _lines.Add(new TLine { Text = "CrowdSec CLI terminal. Type 'help' for common commands, 'clear' to wipe the screen.", Class = "muted" });
+        _lines.Add(new TLine { Text = "Everything runs as cscli <your input>. No shell, no pipes, no redirection.", Class = "muted" });
     }
 
-    private async Task EnableAlerts()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _busy = true; _msg = null;
+        // Auto-scroll the output to the bottom whenever new content appears.
         try
         {
-            var r = await Cli.ConsoleEnableAlertsAsync();
-            _err = !r.Success;
-            _msg = r.Success
-                ? "Alert sharing enabled. New alerts will be pushed to the Console."
-                : $"Failed: {r.FlattenError() ?? r.Stderr}";
-            await Refresh();
+            await JS.InvokeVoidAsync("csTerminal.scrollToEnd", _outputRef);
         }
-        finally { _busy = false; }
+        catch { /* JS not ready yet during prerender - safe to ignore */ }
     }
 
-    private async Task DisableAlerts()
+    private void OnInput(ChangeEventArgs e) => _input = e.Value?.ToString() ?? "";
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        _busy = true; _msg = null;
+        switch (e.Key)
+        {
+            case "Enter":
+                await Execute();
+                break;
+            case "ArrowUp":
+                BrowseHistory(-1);
+                break;
+            case "ArrowDown":
+                BrowseHistory(1);
+                break;
+        }
+    }
+
+    private void BrowseHistory(int delta)
+    {
+        if (_history.Count == 0) return;
+        if (_historyCursor < 0)
+        {
+            // start browsing from the last entry (only on ArrowUp)
+            if (delta < 0) _historyCursor = _history.Count - 1;
+            else return;
+        }
+        else
+        {
+            _historyCursor += delta;
+            if (_historyCursor >= _history.Count) { _historyCursor = -1; _input = ""; return; }
+            if (_historyCursor < 0) { _input = ""; return; }
+        }
+        _input = _history[_historyCursor];
+    }
+
+    private async Task Execute()
+    {
+        var raw = _input.Trim();
+        _input = "";
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        // Echo the prompt line
+        _lines.Add(new TLine { Text = raw, Class = "cmd", IsPrompt = true });
+
+        // Built-in commands handled locally
+        var firstToken = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        if (firstToken.Equals("clear", StringComparison.OrdinalIgnoreCase))
+        {
+            _lines.Clear();
+            return;
+        }
+        if (firstToken.Equals("help", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowHelp();
+            return;
+        }
+        if (firstToken.Equals("history", StringComparison.OrdinalIgnoreCase))
+        {
+            _lines.Add(new TLine { Text = string.Join('\n', _history.Select((c, i) => $"  {i + 1,3}  {c}")), Class = "out" });
+            return;
+        }
+
+        // Record in history (skip duplicates of the last entry)
+        if (_history.Count == 0 || _history[^1] != raw)
+            _history.Add(raw);
+        _historyCursor = -1;
+
+        _busy = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         try
         {
-            var r = await Cli.ConsoleDisableAlertsAsync();
-            _err = !r.Success;
-            _msg = r.Success
-                ? "Alert sharing disabled. Existing alerts remain on the Console."
-                : $"Failed: {r.FlattenError() ?? r.Stderr}";
-            await Refresh();
+            var r = await Cli.RunTerminalAsync(raw, _cts.Token);
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrEmpty(r.Stdout)) sb.Append(r.Stdout);
+            if (!string.IsNullOrWhiteSpace(r.Stderr))
+            {
+                if (sb.Length > 0 && !sb.ToString().EndsWith('\n')) sb.Append('\n');
+                sb.Append(r.Stderr);
+            }
+            if (sb.Length == 0)
+                sb.Append($"(no output, exit code {r.ExitCode})");
+            else if (r.ExitCode != 0)
+                sb.Append($"\n[exit code {r.ExitCode}]");
+
+            var text = sb.ToString().TrimEnd('\r', '\n');
+            // Split multi-line output so each terminal line wraps independently.
+            foreach (var l in text.Split('\n'))
+                _lines.Add(new TLine { Text = l, Class = r.ExitCode == 0 ? "out" : "err" });
         }
-        finally { _busy = false; }
+        catch (OperationCanceledException)
+        {
+            _lines.Add(new TLine { Text = "[command timed out after 5 minutes]", Class = "err" });
+        }
+        catch (Exception ex)
+        {
+            _lines.Add(new TLine { Text = $"[error] {ex.Message}", Class = "err" });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task ShowHelp()
+    {
+        var help = string.Join('\n', new[]
+        {
+            "Common cscli commands:",
+            "  decisions list                       # list active bans",
+            "  decisions add -i 1.2.3.4 -d 4h       # ban an IP for 4h",
+            "  decisions delete -i 1.2.3.4          # remove a ban",
+            "  alerts list                          # recent alerts",
+            "  bouncers list                        # registered bouncers",
+            "  machines list                        # registered machines",
+            "  hub update                           # refresh hub index",
+            "  hub upgrade                          # upgrade all hub items",
+            "  collections list                     # installed collections",
+            "  metrics                              # engine metrics",
+            "  config show                          # merged configuration",
+            "  config backup /tmp/backup.tgz        # backup config",
+            "  lapi status                          # LAPI health",
+            "  explain --file /var/log/nginx/access.log --type nginx",
+            "  version                              # cscli + crowdsec version",
+            "",
+            "Add -o json to any list command for machine-readable output.",
+            "",
+            "Local commands: help, clear, history. Up/Down arrows recall history."
+        });
+        foreach (var l in help.Split('\n'))
+            _lines.Add(new TLine { Text = l, Class = "out" });
+        return Task.CompletedTask;
+    }
+
+    private Task Clear()
+    {
+        _lines.Clear();
+        _lines.Add(new TLine { Text = "(screen cleared)", Class = "muted" });
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
     }
 }

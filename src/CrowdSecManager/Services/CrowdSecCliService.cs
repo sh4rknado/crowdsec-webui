@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using CrowdSecManager.Models;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,17 @@ public interface ICrowdSecCliService
     Task<CliResult> RunAsync(params string[] args);
     Task<CliResult> RunAsync(IEnumerable<string> args, CancellationToken ct = default);
     Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default);
+
+    /// <summary>
+    /// Run an arbitrary <c>cscli</c> command line for the interactive terminal page.
+    /// The input is split into argv tokens (double-quote aware, with backslash
+    /// escaping), a leading literal <c>cscli</c> token is stripped if present,
+    /// and the tokens are passed directly to the cscli process via
+    /// <see cref="ProcessStartInfo.ArgumentList"/> (NO shell, so shell injection
+    /// is impossible). Output is RAW: <c>-o json</c> is NOT forced, so the user
+    /// controls formatting exactly like on a real terminal.
+    /// </summary>
+    Task<CliResult> RunTerminalAsync(string commandLine, CancellationToken ct = default);
     Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default);
     Task<CliResult> HubUpdateAsync(CancellationToken ct = default);
     Task<CliResult> HubUpgradeAsync(CancellationToken ct = default);
@@ -182,6 +194,69 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
         }
 
         return await _processRunner.ExecuteAsync(psi, _opt.CommandTimeoutSeconds, ct);
+    }
+
+    public async Task<CliResult> RunTerminalAsync(string commandLine, CancellationToken ct = default)
+    {
+        var argv = TokenizeCommandLine(commandLine);
+        // Strip a leading literal "cscli" if the user typed it explicitly.
+        if (argv.Count > 0 && string.Equals(argv[0], "cscli", StringComparison.OrdinalIgnoreCase))
+            argv.RemoveAt(0);
+
+        if (argv.Count == 0)
+            return new CliResult { ExitCode = 0, Stdout = "", Stderr = "No command entered. Type 'help' for common cscli commands.", Duration = TimeSpan.Zero };
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _opt.CliPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        if (!string.IsNullOrEmpty(_opt.ConfigDir) && Directory.Exists(_opt.ConfigDir))
+            psi.Environment["CROWDSEC_CONFIG"] = _opt.ConfigDir;
+
+        // Tokens are passed directly as argv - NO shell, so metacharacters such
+        // as ; | & $ cannot break out of cscli. RAW output: do NOT force -o json.
+        foreach (var a in argv) psi.ArgumentList.Add(a);
+
+        try
+        {
+            return await _processRunner.ExecuteAsync(psi, _opt.CommandTimeoutSeconds, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Terminal command failed: {Cmd}", commandLine);
+            return new CliResult { ExitCode = -1, Stderr = ex.Message, Duration = TimeSpan.Zero };
+        }
+    }
+
+    /// <summary>
+    /// Split a command line into argv tokens. Respects double quotes (which are
+    /// removed) and backslash escaping of the next character. Whitespace outside
+    /// quotes separates tokens. This mirrors how a POSIX shell tokenizes a simple
+    /// command line, but without any shell expansion, redirection or piping.
+    /// </summary>
+    private static List<string> TokenizeCommandLine(string? line)
+    {
+        var tokens = new List<string>();
+        if (string.IsNullOrWhiteSpace(line)) return tokens;
+        var sb = new StringBuilder();
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (c == '\\' && i + 1 < line.Length) { sb.Append(line[++i]); continue; }
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (char.IsWhiteSpace(c) && !inQuotes)
+            {
+                if (sb.Length > 0) { tokens.Add(sb.ToString()); sb.Clear(); }
+            }
+            else sb.Append(c);
+        }
+        if (sb.Length > 0) tokens.Add(sb.ToString());
+        return tokens;
     }
 
     public async Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default)

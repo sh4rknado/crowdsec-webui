@@ -993,3 +993,67 @@ ul.inline-list li code {
     border: 1px solid rgba(251, 191, 36, 0.3);
     color: var(--warn);
 }
+
+/* ============= crowdsec-cli terminal (Console page) ============= */
+.terminal-card { padding: 0; overflow: hidden; }
+.terminal-card > header { margin: 0; padding: 10px 16px; }
+
+.terminal {
+    background: #05080f;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-family: "Liberation Mono", "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #d6e1f5;
+    display: flex;
+    flex-direction: column;
+    height: 60vh;
+    min-height: 360px;
+}
+.terminal-output {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 12px 16px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.terminal-output .tline { display: flex; gap: 8px; align-items: baseline; }
+.terminal-output .tline .tprompt { color: var(--accent); flex: 0 0 auto; user-select: none; }
+.terminal-output .tline .ttext { white-space: pre-wrap; word-break: break-word; }
+.terminal-output .tline.cmd .ttext { color: #ffffff; font-weight: 600; }
+.terminal-output .tline.out .ttext { color: #c8d6f0; }
+.terminal-output .tline.err .ttext { color: #ff6b6b; }
+.terminal-output .tline.muted .ttext { color: var(--text-mut); }
+
+.terminal-input {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: #070b14;
+}
+.terminal-input .tprompt { color: var(--accent); font-weight: 700; user-select: none; }
+.terminal-input input {
+    flex: 1 1 auto;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: inherit;
+    caret-color: var(--accent);
+}
+.terminal-input input::placeholder { color: rgba(214,225,245,0.35); }
+.terminal-input input:disabled { color: #888; cursor: progress; }
+
+.btn.small { padding: 4px 10px; font-size: 12px; }
+kbd {
+    background: var(--bg-card-2);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 3px;
+    padding: 0 5px;
+    font-family: inherit;
+    font-size: 11px;
+}
