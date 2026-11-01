@@ -22,6 +22,12 @@
                 </li>
             }
         </ul>
+        <div class="new-file">
+            <input type="text" placeholder="acquis.d/my-app.yaml"
+                   @bind="_newFilePath" @bind:event="oninput" />
+            <button class="btn ghost small" disabled="@string.IsNullOrWhiteSpace(_newFilePath)"
+                    @onclick="CreateNewFile">New file</button>
+        </div>
     </div>
 
     <div class="card editor">
@@ -102,6 +108,26 @@
         await Task.CompletedTask;
     }
     private string _selected = "";
+
+    private string _newFilePath = "";
+
+    private async Task CreateNewFile()
+    {
+        var path = _newFilePath.Trim().TrimStart('/', '\\');
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var (created, err) = Cfg.TryCreate(path, out var detail);
+        _err = !created;
+        _msg = created
+            ? $"Created {path}. It will be picked up by CrowdSec on next reload (use 'Apply / reload CrowdSec')."
+            : (detail ?? err);
+        if (created)
+        {
+            _files = Cfg.ListConfigFiles();
+            _newFilePath = "";
+            await Select(path);
+        }
+        await Task.CompletedTask;
+    }
 
     private async Task Reload()
     {

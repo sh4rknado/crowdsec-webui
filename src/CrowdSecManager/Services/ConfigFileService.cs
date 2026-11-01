@@ -17,6 +17,17 @@ public interface IConfigFileService
     (bool Valid, string? Error) Save(string relativePath, string content);
     (bool Valid, string? Error) ValidateYaml(string content);
     Task BackupAsync(string targetDir, CancellationToken ct = default);
+
+    /// <summary>
+    /// Create a brand-new YAML file inside an editable directory (e.g. <c>acquis.d/</c>).
+    /// Fails if the file already exists, if the path is outside the editable
+    /// directories, or if the filename is not a .yaml/.yml file. Enables the
+    /// "add new acquisition.yaml" workflow from the web UI without dropping a
+    /// file on the host manually.
+    /// </summary>
+    /// <param name="relativePath">Path relative to <c>ConfigDir</c>, e.g. <c>acquis.d/my-app.yaml</c>.</param>
+    /// <param name="error">Human-readable reason when creation is refused.</param>
+    (bool Created, string? Error) TryCreate(string relativePath, out string? error);
 }
 
 public sealed class ConfigFileService : IConfigFileService
@@ -178,6 +189,74 @@ public sealed class ConfigFileService : IConfigFileService
         catch (Exception ex)
         {
             return (false, ex.Message);
+        }
+    }
+
+    public (bool Created, string? Error) TryCreate(string relativePath, out string? error)
+    {
+        // Reuse the same path-traversal + whitelist guard as Save. TryCreate is
+        // stricter on two points: the file must NOT already exist, and it must
+        // live inside an EditableDirectory (so users cannot overwrite the
+        // top-level acquis.yaml / config.yaml with a fresh empty file by accident).
+        if (!IsAllowed(relativePath))
+        {
+            error = "New files may only be created inside an editable directory "
+                    + "(acquis.d, notifications, parsers, scenarios, postoverflows, "
+                    + "collections, contexts, appsec-rules, appsec-configs) and must end in .yaml/.yml.";
+            return (false, error);
+        }
+
+        var normalized = relativePath.Replace('\\', '/');
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 2)
+        {
+            error = "Use the editor to modify the top-level file. New files must live in a sub-directory (e.g. acquis.d/my-app.yaml).";
+            return (false, error);
+        }
+        if (!EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase))
+        {
+            error = $"Cannot create files under '{segments[0]}'. Use one of: {string.Join(", ", EditableDirectories)}.";
+            return (false, error);
+        }
+
+        var abs = Path.Combine(_opt.ConfigDir, relativePath);
+        try
+        {
+            if (File.Exists(abs))
+            {
+                error = $"A file already exists at {relativePath}. Open it from the list to edit instead.";
+                return (false, error);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(abs)!);
+
+            // Seed with a minimal, valid acquisition scaffold when created under acquis.d/,
+            // otherwise start from an empty YAML document the user can fill in.
+            var seed = segments[0].Equals("acquis.d", StringComparison.OrdinalIgnoreCase)
+                ? "# CrowdSec acquisition file. Add one or more source blocks, e.g.:\n"
+                  + "# filenames:\n"
+                  + "#   - /var/log/nginx/access.log\n"
+                  + "# labels:\n"
+                  + "#   type: nginx\n"
+                  + "#   override: /var/log/nginx/access.log\n"
+                  : "";
+            var temporaryPath = abs + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(temporaryPath, seed);
+                File.Move(temporaryPath, abs, overwrite: false);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+            _log.LogInformation("Created new CrowdSec config file {Path}", relativePath);
+            error = null;
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return (false, error);
         }
     }
 

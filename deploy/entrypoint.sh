@@ -1,12 +1,18 @@
 #!/bin/bash
 # entrypoint.sh - launched by tini as PID 1 inside the container.
 #
+# Single-container design: this PID 1 supervises BOTH:
+#   1. the CrowdSec engine (daemon + LAPI on 8080)
+#   2. the ASP.NET 8 Blazor manager UI (on 8081)
+#
 # Responsibilities:
 #   1. Ensure CrowdSec data + config dirs exist (they come from bind mounts).
-#   2. Optionally bootstrap a fresh CrowdSec install if /etc/crowdsec is empty.
-#   3. Start the CrowdSec daemon (which serves both the log processor and LAPI).
-#   4. Register the manager as a bouncer so the LAPI client can authenticate.
-#   5. Supervise CrowdSec and ASP.NET; stop the sibling process when either exits.
+#   2. Pre-flight: confirm 8080 and 8081 are free inside the container namespace
+#      so the two listeners never collide (or collide with a stale process).
+#   3. Optionally bootstrap a fresh CrowdSec install if /etc/crowdsec is empty.
+#   4. Start the CrowdSec daemon (log processor + LAPI).
+#   5. Register the manager as a bouncer so the LAPI client can authenticate.
+#   6. Supervise CrowdSec and ASP.NET; stop the sibling process when either exits.
 #
 # Env vars (override via Quadlet / podman run -e):
 #   ADMIN_USER               default admin username (default: admin)
@@ -15,6 +21,7 @@
 #   NO_BOOTSTRAP_CROWDSEC    if "1", do not start a CrowdSec daemon inside the
 #                            container (use a host or sidecar CrowdSec instead)
 #   LOCAL_API_URL            override the LAPI URL the manager connects to
+#   SKIP_PORT_PREFLIGHT      if "1", skip the in-container port free check
 set -euo pipefail
 
 CONFIG_DIR="${CrowdSec__ConfigDir:-${CROWDSEC_CONFIG_DIR:-/etc/crowdsec}}"
@@ -30,6 +37,8 @@ CROWDSEC_DOCKER_START_SCRIPT="${CROWDSEC_DOCKER_START_SCRIPT:-/docker_start.sh}"
 CROWDSEC_STAGING_CONFIG_DIR="${CROWDSEC_STAGING_CONFIG_DIR:-/staging/etc/crowdsec}"
 CROWDSEC_ENGINE_LOG="${CROWDSEC_ENGINE_LOG:-/dev/stdout}"
 CROWDSEC_STARTUP_TIMEOUT_SECONDS="${CROWDSEC_STARTUP_TIMEOUT_SECONDS:-120}"
+LAPI_PORT="${CROWDSEC_LAPI_PORT:-8080}"
+UI_PORT="${ASPNETCORE_UI_PORT:-8081}"
 
 if ! [[ "$CROWDSEC_STARTUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
     echo "[entrypoint] ERROR: CROWDSEC_STARTUP_TIMEOUT_SECONDS must be a positive integer." >&2
@@ -58,6 +67,44 @@ export GeoIp__HomeLabel="$HOME_LABEL"
 mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$MANAGER_DB_DIR" "$(dirname "$BOUNCER_KEY_FILE")" /var/lib/GeoIP /var/lib/crowdsec-manager/backups
 
 log() { echo "[entrypoint] $*"; }
+
+# --- 0. Pre-flight: ensure the two listeners are free inside the container ---
+# Both the CrowdSec LAPI (8080) and the Blazor UI (8081) bind inside this
+# container's network namespace. They MUST be distinct and free at startup,
+# otherwise one will fail to bind. This check is a safety net for the case
+# where a stale process from a previous start is still holding a port.
+port_is_free() {
+    local port="$1"
+    # ss ships with iproute2 (installed in the Dockerfile). Fall back gracefully.
+    if command -v ss >/dev/null 2>&1; then
+        if ss -ltn 2>/dev/null | awk 'NR>1{print $4}' | grep -Eq "[:.]${port}\$"; then
+            return 1
+        fi
+        return 0
+    fi
+    # Fallback: try /proc/net/tcp (port in hex, little-endian 16-bit)
+    local hex
+    hex=$(printf '%04X' "$port")
+    if grep -Eq "^[0-9]+: [0-9A-F]{8}:${hex} " /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+if [ "${SKIP_PORT_PREFLIGHT:-0}" != "1" ]; then
+    if [ "$LAPI_PORT" = "$UI_PORT" ]; then
+        log "ERROR: LAPI port and UI port are both $LAPI_PORT. They must differ."
+        exit 1
+    fi
+    for p in "$LAPI_PORT" "$UI_PORT"; do
+        if ! port_is_free "$p"; then
+            log "ERROR: port $p is already in use inside the container. Aborting to avoid a bind conflict."
+            log "        If a previous CrowdSec/manager process is still running, stop it first."
+            exit 1
+        fi
+    done
+    log "Pre-flight OK: ports $LAPI_PORT (LAPI) and $UI_PORT (UI) are free inside the container."
+fi
 
 APP_PID=""
 SHUTDOWN_REQUESTED=0
@@ -88,7 +135,7 @@ if [ "${NO_BOOTSTRAP_CROWDSEC:-0}" != "1" ]; then
         exit 1
     fi
 
-    log "Starting the official CrowdSec image setup and daemon ..."
+    log "Starting the official CrowdSec image setup and daemon (LAPI on :${LAPI_PORT}) ..."
     LEVEL_ERROR=true /bin/bash "$CROWDSEC_DOCKER_START_SCRIPT" >"$CROWDSEC_ENGINE_LOG" 2>&1 &
     CS_PID=$!
     log "CrowdSec PID: $CS_PID"
@@ -167,7 +214,7 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
 fi
 
 # --- 4. Start ASP.NET and supervise both long-running processes ---
-log "Starting CrowdSec Manager on http://0.0.0.0:8081 ..."
+log "Starting CrowdSec Manager UI on http://0.0.0.0:${UI_PORT} ..."
 dotnet /app/CrowdSecManager.dll &
 APP_PID=$!
 

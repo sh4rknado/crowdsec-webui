@@ -7,15 +7,23 @@
 # Enable:    sudo systemctl enable --now crowdsec-manager.service
 # Logs:      sudo journalctl -u crowdsec-manager.service -f
 # =====================================================================
+#
+# Single-container design, host networking:
+#   The CrowdSec engine (LAPI on 8080) and the Blazor manager UI (8081)
+#   run inside ONE container that shares the host network namespace.
+#   Both listeners bind DIRECTLY on the host: CrowdSec on host:8080, the UI
+#   on host:8081. No PublishPort directives (they are meaningless in host
+#   mode and would be discarded with a warning).
+#
+# REQUIREMENT: nothing on the host may already listen on 8080 or 8081.
+# In particular, do NOT run a host CrowdSec daemon alongside this container,
+# or the two will fight for port 8080.
 
 [Unit]
-Description=CrowdSec Manager - ASP.NET admin UI for CrowdSec
+Description=CrowdSec Manager - single container (CrowdSec engine + ASP.NET admin UI)
 Documentation=https://github.com/crowdsecurity/crowdsec
 After=network-online.target
 Wants=network-online.target
-# If you already run crowdsec as a host systemd unit, uncomment:
-# After=crowdsec.service
-# Requires=crowdsec.service
 
 [Container]
 # Image - either built locally or pulled from a registry
@@ -30,21 +38,26 @@ ContainerName=crowdsec-manager
 # Run as root inside the container (cscli needs it)
 User=0
 
-# Networking - share host network so cscli + LAPI can talk to a host crowdsec
-# If you run crowdsec *inside* this container, switch to a bridge network.
+# ---- Networking ----
+# Host network: the container shares the host network namespace, so the
+# CrowdSec LAPI (8080) and the manager UI (8081) bind directly on the host.
+# No PublishPort directives are used (they are discarded in host mode).
 Network=host
 
 # ---- Volumes ----
-# CrowdSec config (config.yaml, profiles.yaml, acquis.yaml, hub/, ...)
-# If empty, the container will bootstrap a default config on first start.
+# CrowdSec config (config.yaml, profiles.yaml, acquis.yaml, acquis.d/, hub/, ...)
+# Read-write so the UI can edit acquis.yaml and so cscli can install hub items.
+# This is what makes "add / modify acquisition.yaml" possible from the web UI.
 Volume=/etc/crowdsec:/etc/crowdsec:Z
 # CrowdSec database (SQLite)
 Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
-# Manager app database (users, threat history)
+# Manager app database (users, threat history, bouncer key, backups)
 Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z
 # GeoIP - mount your GeoLite2-City.mmdb here (download from maxmind.com)
 Volume=/var/lib/GeoIP:/var/lib/GeoIP:ro,Z
-# Host logs that CrowdSec should ingest (optional - edit acquis.yaml to point at them)
+# Host logs that CrowdSec should ingest (read-only).
+# Edit /etc/crowdsec/acquis.yaml (or drop a file in /etc/crowdsec/acquis.d/)
+# to point CrowdSec at log paths visible here, e.g. /var/log/nginx/access.log.
 Volume=/var/log:/var/log:ro,Z
 
 # ---- Environment ----
@@ -58,7 +71,7 @@ Environment=HOME_LONGITUDE=4.3517
 Environment=HOME_LABEL=Protected host
 # Bouncer API key - leave empty to auto-register on first start
 Environment=CROWDSEC_BOUNCER_APIKEY=
-# CrowdSec LAPI URL (host network: localhost works)
+# CrowdSec LAPI URL: 127.0.0.1:8080 works because LAPI runs in the SAME container.
 Environment=CrowdSec__LocalApiUrl=http://127.0.0.1:8080
 # Path overrides
 Environment=CrowdSec__ConfigDir=/etc/crowdsec
@@ -67,6 +80,9 @@ Environment=GeoIp__DatabasePath=/var/lib/GeoIP/GeoLite2-City.mmdb
 Environment=GeoIp__HomeLatitude=50.8503
 Environment=GeoIp__HomeLongitude=4.3517
 Environment=Database__Path=/var/lib/crowdsec-manager/app.db
+# Single-container mode: bootstrap the CrowdSec engine inside this container.
+# Set NO_BOOTSTRAP_CROWDSEC=1 ONLY if you want to talk to a host CrowdSec instead.
+Environment=NO_BOOTSTRAP_CROWDSEC=0
 
 # Drop env file support (Quadlet 5.0+). Set secrets in:
 #   /etc/containers/systemd/crowdsec-manager.env
