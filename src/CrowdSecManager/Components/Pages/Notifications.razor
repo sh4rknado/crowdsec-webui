@@ -1,0 +1,114 @@
+@page "/notifications"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<Notifications> Log
+
+<PageTitle>Notifications &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>Notification plugins (@_list.Count)</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+        </div>
+    </header>
+
+    @if (_list.Count == 0)
+    {
+        <p class="muted">
+            No notification plugins configured. Notification plugins (email, Slack, HTTP webhook,
+            Sentinel...) are configured as YAML files in <code class="mono">/etc/crowdsec/notifications/</code>
+            and registered in <code class="mono">profiles.yaml</code>.
+        </p>
+    }
+    else
+    {
+        <table class="data">
+            <thead>
+                <tr><th>Name</th><th>Type</th><th>Format</th><th>State</th><th>Description</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var n in _list)
+                {
+                    <tr>
+                        <td class="mono">@n.Name</td>
+                        <td>@n.Type</td>
+                        <td>@n.Format</td>
+                        <td>
+                            @if (n.Enabled)
+                            {<span class="badge ok">enabled</span> }
+                            else
+                            {<span class="badge">disabled</span> }
+                        </td>
+                        <td>@Truncate(n.Description, 80)</td>
+                        <td><button class="btn mini" @onclick="async () => await Inspect(n.Name!)">Inspect</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_inspectOutput is not null)
+    {
+        <details class="raw" open>
+            <summary>Inspect output for @(_inspectName ?? "")</summary>
+            <pre class="mono">@_inspectOutput</pre>
+        </details>
+    }
+
+    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+<section class="card">
+    <header><h2>About notification plugins</h2></header>
+    <div class="muted small">
+        <p>
+            CrowdSec notification plugins let you forward alerts to external systems when scenarios trigger.
+            The plugin lifecycle is:
+        </p>
+        <ol>
+            <li>Install the plugin YAML in <code class="mono">/etc/crowdsec/notifications/&lt;name&gt;.yaml</code></li>
+            <li>Reference it in <code class="mono">profiles.yaml</code> under <code class="mono">notifications</code></li>
+            <li>Reload CrowdSec (use the <em>Configuration &rarr; Reload CrowdSec</em> action, or restart the service)</li>
+        </ol>
+        <p>
+            Edit the YAML files from the <a href="/config">Configuration editor</a>.
+            The list above is read live from <code class="mono">cscli notifications list</code>.
+        </p>
+    </div>
+</section>
+
+@code {
+    private List<CsNotification> _list = new();
+    private bool _busy;
+    private string? _msg; private bool _err;
+    private string? _inspectOutput;
+    private string? _inspectName;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try { _list = (await Cli.ListNotificationsAsync()).ToList(); }
+        catch (Exception ex) { Log.LogDebug("notifications: {Msg}", ex.Message); }
+    }
+
+    private async Task Inspect(string name)
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.InspectNotificationAsync(name);
+            _err = !r.Success;
+            _inspectName = name;
+            _inspectOutput = r.Success
+                ? r.Stdout
+                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
+            if (!r.Success) _msg = $"Failed to inspect {name}.";
+        }
+        finally { _busy = false; }
+    }
+
+    private static string? Truncate(string? s, int n)
+        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
+}

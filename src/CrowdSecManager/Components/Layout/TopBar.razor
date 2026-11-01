@@ -1,0 +1,74 @@
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthProvider
+@inject UserManager<ApplicationUser> UserMgr
+
+<header class="app-topbar">
+    <div class="page-title">@_title</div>
+    <div class="user-box">
+        <div class="user-meta">
+            <span class="user-name">@_userName</span>
+            <span class="user-role">@_role</span>
+        </div>
+        <div class="avatar">@(_initials)</div>
+    </div>
+</header>
+
+@code {
+    private string _title = "CrowdSec Manager";
+    private string _userName = "—";
+    private string _role = "—";
+    private string _initials = "?";
+
+    protected override void OnInitialized()
+    {
+        _title = TitleFor(Nav.Uri);
+        Nav.LocationChanged += (_, _) => _ = InvokeAsync(() =>
+        {
+            _title = TitleFor(Nav.Uri);
+            StateHasChanged();
+        });
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _userName = user.Identity.Name ?? "user";
+            var appUser = await UserMgr.FindByNameAsync(_userName);
+            if (appUser is not null)
+            {
+                var roles = await UserMgr.GetRolesAsync(appUser);
+                _role = roles.Count > 0 ? string.Join(", ", roles) : "Operator";
+            }
+            _initials = string.Concat(_userName.Take(2)).ToUpperInvariant();
+        }
+    }
+
+    private static string TitleFor(string uri)
+    {
+        try
+        {
+            var path = new Uri(uri).AbsolutePath.TrimStart('/');
+            return path switch
+            {
+                "" or "/" => "Dashboard",
+                "threatmap" => "Real-time threat map",
+                "decisions" => "Decisions - manual IP bans",
+                "alerts" => "Alerts - triggered scenarios",
+                "hub" => "Hub - parsers, scenarios, collections",
+                "explain" => "Explain - test the log pipeline",
+                "bouncers" => "Bouncers - remediation components",
+                "machines" => "Machines - registered log processors",
+                "lapi" => "Local API - status, register, contexts",
+                "simulation" => "Simulation - dry-run scenarios",
+                "notifications" => "Notifications - alert forwarders",
+                "console" => "CrowdSec Console - Central API",
+                "config" => "Configuration editor",
+                "login" => "Sign in",
+                _ => "CrowdSec Manager"
+            };
+        } catch { return "CrowdSec Manager"; }
+    }
+}

@@ -1,0 +1,132 @@
+@page "/decisions"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ICrowdSecApiService Api
+@inject ILogger<Decisions> Log
+
+<PageTitle>Decisions &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header><h2>Add a manual block</h2></header>
+    <div class="form-row">
+        <label>IP address
+            <input type="text" @bind="_ip" placeholder="1.2.3.4 or 10.0.0.0/24" />
+        </label>
+        <label>Duration
+            <input type="text" @bind="_duration" placeholder="4h, 7d, 30m" />
+        </label>
+        <label>Type
+            <input type="text" @bind="_type" placeholder="ban / captcha / throttle" />
+        </label>
+        <label>Reason
+            <input type="text" @bind="_reason" placeholder="Manual SOC decision" />
+        </label>
+        <label class="checkbox">
+            <input type="checkbox" @bind="_bypassAllowlist" />
+            <span>Bypass allowlist</span>
+            <small class="muted">Force the ban even if the IP is in a CrowdSec allowlist.</small>
+        </label>
+        <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Ban IP</button>
+    </div>
+    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+<section class="card">
+    <header>
+        <h2>Active decisions (@_list.Count)</h2>
+        <div class="actions">
+            <button class="btn ghost" @onclick="Refresh">Refresh</button>
+            <button class="btn danger" disabled="@_busyDel" @onclick="DeleteAll">Delete all</button>
+        </div>
+    </header>
+    @if (_list.Count == 0)
+    {
+        <p class="muted">No active decisions.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead><tr><th>ID</th><th>IP</th><th>Scope</th><th>Type</th><th>Scenario</th><th>Origin</th><th>Expires</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var d in _list)
+                {
+                    <tr>
+                        <td class="num">@d.Id</td>
+                        <td class="mono">@d.Value</td>
+                        <td>@d.Scope</td>
+                        <td>@d.Type</td>
+                        <td title="@d.Scenario">@Truncate(d.Scenario, 40)</td>
+                        <td>@d.Origin</td>
+                        <td>@(d.ExpiresAt == default ? "—" : d.ExpiresAt.ToLocalTime().ToString("u"))</td>
+                        <td><button class="btn mini danger" @onclick="async () => await Delete(d.Id)">Delete</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private string _ip = "";
+    private string _duration = "4h";
+    private string _type = "ban";
+    private string _reason = "Manual SOC decision";
+    private bool _bypassAllowlist;
+    private List<CsDecision> _list = new();
+    private bool _busyAdd, _busyDel;
+    private string? _msg; private bool _err;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try { _list = (await Api.GetDecisionsAsync()).ToList(); }
+        catch
+        {
+            try { _list = (await Cli.ListDecisionsAsync()).ToList(); }
+            catch (Exception ex) { Log.LogDebug("decisions: {Msg}", ex.Message); }
+        }
+    }
+
+    private async Task Add()
+    {
+        _busyAdd = true; _msg = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_ip))
+            {
+                _err = true; _msg = "IP address is required."; return;
+            }
+            var r = await Cli.AddDecisionAsync(_ip, _duration, _reason, _type, _bypassAllowlist);
+            _err = !r.Success;
+            _msg = r.Success
+                ? $"Added decision for {_ip} ({_duration}, {_type}{(_bypassAllowlist ? ", bypass allowlist" : "")})."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            if (r.Success) { _ip = ""; _bypassAllowlist = false; await Refresh(); }
+        }
+        finally { _busyAdd = false; }
+    }
+
+    private async Task Delete(long id)
+    {
+        var r = await Cli.DeleteDecisionAsync(id: id);
+        if (r.Success) await Refresh();
+        else { _err = true; _msg = $"Failed: {r.FlattenError()}"; }
+    }
+
+    private async Task DeleteAll()
+    {
+        _busyDel = true;
+        try
+        {
+            var r = await Cli.DeleteDecisionAsync(all: true);
+            _err = !r.Success;
+            _msg = r.Success ? "All decisions removed." : $"Failed: {r.FlattenError()}";
+            await Refresh();
+        }
+        finally { _busyDel = false; }
+    }
+
+    private static string? Truncate(string? s, int n)
+        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
+}

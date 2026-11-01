@@ -1,0 +1,107 @@
+@page "/console"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<ConsolePage> Log
+
+<PageTitle>Console &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>CrowdSec Console (Central API)</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+            <button class="btn" disabled="@_busy" @onclick="EnableAlerts">Enable alert sharing</button>
+            <button class="btn danger" disabled="@_busy" @onclick="DisableAlerts">Disable alert sharing</button>
+        </div>
+    </header>
+
+    @if (string.IsNullOrEmpty(_statusOutput))
+    {
+        <p class="muted">Click "Refresh" to query the CrowdSec Console registration status.</p>
+    }
+    else
+    {
+        <details class="raw" open>
+            <summary>cscli console status</summary>
+            <pre class="mono">@_statusOutput</pre>
+        </details>
+    }
+
+    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+<section class="card">
+    <header><h2>About the CrowdSec Console</h2></header>
+    <div class="muted small">
+        <p>
+            The <a href="https://app.crowdsec.net" target="_blank" rel="noopener">CrowdSec Console</a>
+            is the central SaaS where you can:
+        </p>
+        <ul>
+            <li>Aggregate alerts and decisions across multiple CrowdSec instances</li>
+            <li>Share threat intelligence with the community (anonymised by default)</li>
+            <li>Receive curated CTI (Community Threat Intelligence) feeds back</li>
+        </ul>
+        <p>
+            Registration requires a free CrowdSec account. Once registered, the local
+            <code class="mono">/etc/crowdsec/online_api_credentials.yaml</code> file holds the
+            authentication material. Use <em>Configuration</em> to inspect it.
+        </p>
+        <p>
+            <strong>Enable alert sharing</strong> pushes your alerts to the Console (recommended).
+            <strong>Disable alert sharing</strong> stops pushing but keeps the registration.
+        </p>
+    </div>
+</section>
+
+@code {
+    private string _statusOutput = "";
+    private bool _busy;
+    private string? _msg; private bool _err;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.ConsoleStatusAsync();
+            _statusOutput = r.Success
+                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
+                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
+        }
+        catch (Exception ex) { Log.LogDebug("console status: {Msg}", ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task EnableAlerts()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.ConsoleEnableAlertsAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? "Alert sharing enabled. New alerts will be pushed to the Console."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DisableAlerts()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.ConsoleDisableAlertsAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? "Alert sharing disabled. Existing alerts remain on the Console."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+}

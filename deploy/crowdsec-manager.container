@@ -1,0 +1,96 @@
+# =====================================================================
+# CrowdSec Manager - Podman Quadlet (system service)
+# =====================================================================
+# Install:   sudo cp crowdsec-manager.container /etc/containers/systemd/
+# Reload:    sudo systemctl daemon-reload
+# Start:     sudo systemctl start crowdsec-manager.service
+# Enable:    sudo systemctl enable --now crowdsec-manager.service
+# Logs:      sudo journalctl -u crowdsec-manager.service -f
+# =====================================================================
+
+[Unit]
+Description=CrowdSec Manager - ASP.NET admin UI for CrowdSec
+Documentation=https://github.com/crowdsecurity/crowdsec
+After=network-online.target
+Wants=network-online.target
+# If you already run crowdsec as a host systemd unit, uncomment:
+# After=crowdsec.service
+# Requires=crowdsec.service
+
+[Container]
+# Image - either built locally or pulled from a registry
+Image=localhost/crowdsec-manager:latest
+# If you prefer an inline build (Podman 4.7+):
+# Image=quadlet-crowdsec-manager
+# Build=.
+
+# Container name
+ContainerName=crowdsec-manager
+
+# Run as root inside the container (cscli needs it)
+User=0
+
+# Networking - share host network so cscli + LAPI can talk to a host crowdsec
+# If you run crowdsec *inside* this container, switch to a bridge network.
+Network=host
+
+# ---- Volumes ----
+# CrowdSec config (config.yaml, profiles.yaml, acquis.yaml, hub/, ...)
+# If empty, the container will bootstrap a default config on first start.
+Volume=/etc/crowdsec:/etc/crowdsec:Z
+# CrowdSec database (SQLite)
+Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
+# Manager app database (users, threat history)
+Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z
+# GeoIP - mount your GeoLite2-City.mmdb here (download from maxmind.com)
+Volume=/var/lib/GeoIP:/var/lib/GeoIP:ro,Z
+# Host logs that CrowdSec should ingest (optional - edit acquis.yaml to point at them)
+Volume=/var/log:/var/log:ro,Z
+
+# ---- Environment ----
+# Admin credentials (REQUIRED on first boot, then ignored)
+Environment=ADMIN_USER=admin
+# REQUIRED on first boot: add ADMIN_PASSWORD here or configure an EnvironmentFile.
+# Never commit a real password in this Quadlet file.
+# Home location (lat/lon) for the threat map - default: Brussels
+Environment=HOME_LATITUDE=50.8503
+Environment=HOME_LONGITUDE=4.3517
+Environment=HOME_LABEL=Protected host
+# Bouncer API key - leave empty to auto-register on first start
+Environment=CROWDSEC_BOUNCER_APIKEY=
+# CrowdSec LAPI URL (host network: localhost works)
+Environment=CrowdSec__LocalApiUrl=http://127.0.0.1:8080
+# Path overrides
+Environment=CrowdSec__ConfigDir=/etc/crowdsec
+Environment=CrowdSec__DataDir=/var/lib/crowdsec/data
+Environment=GeoIp__DatabasePath=/var/lib/GeoIP/GeoLite2-City.mmdb
+Environment=GeoIp__HomeLatitude=50.8503
+Environment=GeoIp__HomeLongitude=4.3517
+Environment=Database__Path=/var/lib/crowdsec-manager/app.db
+
+# Drop env file support (Quadlet 5.0+). Set secrets in:
+#   /etc/containers/systemd/crowdsec-manager.env
+#EnvironmentFile=/etc/containers/systemd/crowdsec-manager.env
+
+# ---- Security ----
+# cscli exec, config writes and signal handling require elevated caps
+# Keep the surface minimal but functional.
+AddCapability=CAP_NET_BIND_SERVICE
+AddCapability=CAP_NET_RAW
+NoNewPrivileges=false
+ReadOnly=false
+
+# Resource limits (tune to your host)
+#LimitCPU=2
+#LimitMemory=1G
+
+# Auto-restart
+Notify=healthy
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

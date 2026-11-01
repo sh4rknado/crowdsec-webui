@@ -1,0 +1,167 @@
+@page "/"
+@attribute [Authorize]
+@inject ICrowdSecApiService Api
+@inject ICrowdSecCliService Cli
+@inject IConfigFileService Cfg
+@inject IGeoIpService Geo
+@inject ILogger<Dashboard> Log
+
+<PageTitle>Dashboard &middot; CrowdSec Manager</PageTitle>
+
+<section class="cards">
+    <div class="card stat">
+        <span class="label">Active decisions</span>
+        <span class="value">@(_stats.TotalDecisions)</span>
+        <span class="sub">IPs currently banned</span>
+    </div>
+    <div class="card stat">
+        <span class="label">Total alerts</span>
+        <span class="value">@(_stats.TotalAlerts)</span>
+        <span class="sub">in the CrowdSec database</span>
+    </div>
+    <div class="card stat">
+        <span class="label">Alerts (24h)</span>
+        <span class="value">@(_stats.Last24hAlerts)</span>
+        <span class="sub">rolling 24-hour window</span>
+    </div>
+    <div class="card stat">
+        <span class="label">GeoIP DB</span>
+        <span class="value small">@(_geoOk ? "loaded" : "missing")</span>
+        <span class="sub">@(Geo.IsDatabaseAvailable ? "GeoLite2-City.mmdb" : "Install MaxMind GeoLite2 for accurate mapping")</span>
+    </div>
+</section>
+
+<section class="grid-2">
+    <div class="card">
+        <header><h2>Quick actions</h2></header>
+        <div class="actions">
+            <button class="btn primary" disabled="@_busyHub" @onclick="HubUpdate">Update hub index</button>
+            <button class="btn" disabled="@_busyHub" @onclick="HubUpgrade">Upgrade all installed items</button>
+            <button class="btn" disabled="@_busyCfg" @onclick="BackupConfig">Backup config</button>
+            <button class="btn ghost" @onclick="Refresh">Refresh now</button>
+        </div>
+        @if (!string.IsNullOrEmpty(_actionMsg))
+        {
+            <div class="action-msg @(_actionErr ? "err" : "ok")">@_actionMsg</div>
+        }
+    </div>
+
+    <div class="card">
+        <header><h2>Top scenarios (last 500 alerts)</h2></header>
+        @if (_stats.TopScenarios.Count == 0)
+        {
+            <p class="muted">No alerts recorded yet.</p>
+        }
+        else
+        {
+            <table class="data">
+                <thead><tr><th>Scenario</th><th class="num">Hits</th></tr></thead>
+                <tbody>
+                    @foreach (var (k, v) in _stats.TopScenarios)
+                    {
+                        <tr><td>@k</td><td class="num">@v</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</section>
+
+<section class="card">
+    <header><h2>Recently blocked IPs</h2>
+        <a href="/decisions" class="more">Manage decisions &rarr;</a>
+    </header>
+    @if (_recentDecisions.Count == 0)
+    {
+        <p class="muted">No active decisions.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead><tr><th>IP</th><th>Scenario</th><th>Type</th><th>Expires</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var d in _recentDecisions.Take(15))
+                {
+                    <tr>
+                        <td class="mono">@d.Value</td>
+                        <td>@(d.Scenario ?? "manual")</td>
+                        <td>@(d.Type ?? "ban")</td>
+                        <td>@(d.ExpiresAt == default ? "—" : d.ExpiresAt.ToLocalTime().ToString("u"))</td>
+                        <td><button class="btn mini danger" @onclick="async () => await DeleteDecision(d.Id)">Delete</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private ThreatMapStats _stats = new();
+    private List<CsDecision> _recentDecisions = new();
+    private bool _geoOk = true;
+    private bool _busyHub, _busyCfg;
+    private string? _actionMsg;
+    private bool _actionErr;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _stats = await Api.GetSnapshotStatsAsync();
+            _recentDecisions = (await Api.GetDecisionsAsync()).ToList();
+            _geoOk = Geo.IsDatabaseAvailable;
+        }
+        catch (Exception ex) { Log.LogDebug("refresh: {Msg}", ex.Message); }
+    }
+
+    private async Task HubUpdate()
+    {
+        _busyHub = true; _actionMsg = null;
+        try
+        {
+            var r = await Cli.HubUpdateAsync();
+            _actionErr = !r.Success;
+            _actionMsg = r.Success
+                ? $"Hub index updated in {r.Duration.TotalSeconds:F1}s."
+                : $"cscli hub update failed: {r.FlattenError() ?? r.Stderr}";
+        }
+        finally { _busyHub = false; }
+    }
+
+    private async Task HubUpgrade()
+    {
+        _busyHub = true; _actionMsg = null;
+        try
+        {
+            var r = await Cli.HubUpgradeAsync();
+            _actionErr = !r.Success;
+            _actionMsg = r.Success
+                ? $"All hub items upgraded in {r.Duration.TotalSeconds:F1}s."
+                : $"cscli hub upgrade failed: {r.FlattenError() ?? r.Stderr}";
+        }
+        finally { _busyHub = false; }
+    }
+
+    private async Task BackupConfig()
+    {
+        _busyCfg = true; _actionMsg = null;
+        try
+        {
+            var dir = "/var/lib/crowdsec-manager/backups";
+            await Cfg.BackupAsync(dir);
+            _actionErr = false;
+            _actionMsg = $"Configuration backed up to {dir}";
+        }
+        catch (Exception ex) { _actionErr = true; _actionMsg = ex.Message; }
+        finally { _busyCfg = false; }
+    }
+
+    private async Task DeleteDecision(long id)
+    {
+        var r = await Cli.DeleteDecisionAsync(id: id);
+        if (r.Success) await Refresh();
+        else { _actionErr = true; _actionMsg = $"Delete failed: {r.FlattenError()}"; }
+    }
+}

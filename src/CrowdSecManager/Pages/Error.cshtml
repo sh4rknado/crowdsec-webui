@@ -1,0 +1,24 @@
+@page "/error"
+@namespace CrowdSecManager.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+    Response.StatusCode = 500;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Error - CrowdSec Manager</title>
+    <link rel="stylesheet" href="~/css/soc.css" />
+</head>
+<body class="soc">
+    <div class="forbidden">
+        <h1>500</h1>
+        <p>Something went wrong while processing your request.</p>
+        <p class="muted small">Check the container logs with <code class="mono">journalctl -u crowdsec-manager -f</code></p>
+        <p><a href="/">Back to dashboard</a></p>
+    </div>
+</body>
+</html>

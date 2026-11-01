@@ -1,0 +1,4 @@
+/* threatmap-specific tweaks - main theme is in soc.css */
+.threatmap-canvas-box {
+    background: radial-gradient(ellipse at center, #0a1326 0%, #03060f 100%);
+}

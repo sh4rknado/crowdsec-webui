@@ -1,0 +1,41 @@
+@inherits LayoutComponentBase
+@inject ICrowdSecApiService Api
+@inject ICrowdSecCliService Cli
+@inject IJSRuntime JS
+
+<div class="app-shell">
+    <NavMenu />
+    <div class="app-main">
+        <TopBar />
+        <main class="app-content">
+            @Body
+        </main>
+        <footer class="app-footer">
+            <span>CrowdSec Manager v1.0 &middot; Blazor Server on .NET 8</span>
+            <span id="cs-status" class="@(_csOk ? "ok" : "down")">
+                CrowdSec LAPI: @(_csOk ? "online" : "offline")
+            </span>
+        </footer>
+    </div>
+</div>
+
+@code {
+    private bool _csOk = true;
+
+    protected override Task OnInitializedAsync()
+    {
+        // Periodically refresh the LAPI status indicator
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                try { _csOk = await Api.IsReachableAsync(); }
+                catch { _csOk = false; }
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(15000);
+            }
+        });
+
+        return Task.CompletedTask;
+    }
+}

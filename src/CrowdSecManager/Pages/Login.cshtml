@@ -1,0 +1,40 @@
+@page "/login"
+@model LoginModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Sign in - CrowdSec Manager</title>
+    <link rel="stylesheet" href="~/css/soc.css" />
+</head>
+<body class="soc">
+    <div class="login-wrap">
+        <form class="login-card" method="post">
+            @Html.AntiForgeryToken()
+            <div class="brand-mark big" aria-hidden="true">&#9881;</div>
+            <h1>CrowdSec Manager</h1>
+            <p class="muted">Sign in to manage CrowdSec, monitor threats and edit configuration.</p>
+
+            <input type="hidden" asp-for="ReturnUrl" />
+            <label asp-for="Input.Username">Username</label>
+            <input asp-for="Input.Username" autocomplete="username" />
+            <span asp-validation-for="Input.Username" class="err"></span>
+            <label asp-for="Input.Password">Password</label>
+            <input asp-for="Input.Password" autocomplete="current-password" />
+            <span asp-validation-for="Input.Password" class="err"></span>
+
+            @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+            {
+                <div class="err">@Model.ErrorMessage</div>
+            }
+
+            <button type="submit">Sign in</button>
+        </form>
+    </div>
+</body>
+</html>

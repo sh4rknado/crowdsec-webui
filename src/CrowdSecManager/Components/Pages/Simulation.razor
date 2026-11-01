@@ -1,0 +1,168 @@
+@page "/simulation"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<Simulation> Log
+
+<PageTitle>Simulation &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>Simulation mode</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+            @if (_status?.GloballyEnabled == true)
+            {
+                <button class="btn danger" disabled="@_busy" @onclick="Disable">Disable globally</button>
+            }
+            else
+            {
+                <button class="btn primary" disabled="@_busy" @onclick="Enable">Enable globally</button>
+            }
+        </div>
+    </header>
+
+    @if (_status is null)
+    {
+        <p class="muted">Loading simulation status...</p>
+    }
+    else
+    {
+        <div class="kv">
+            <span>Global simulation</span>
+            <b>
+                @if (_status.GloballyEnabled)
+                {<span class="badge ok">enabled</span> }
+                else
+                {<span class="badge">disabled</span> }
+            </b>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_status.RawOutput))
+        {
+            <details class="raw">
+                <summary>Raw cscli output</summary>
+                <pre class="mono">@_status.RawOutput</pre>
+            </details>
+        }
+        <p class="muted small">
+            When enabled globally, CrowdSec will run all scenarios in <strong>simulation</strong> mode:
+            alerts and decisions are recorded but <strong>no IP is actually banned</strong>. Use this to
+            validate new scenarios before enforcing them.
+        </p>
+    }
+    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+<section class="card">
+    <header>
+        <h2>Per-scenario simulation (@_list.Count)</h2>
+        <div class="actions">
+            <input type="text" @bind="_newScenario" placeholder="crowdsecurity/ssh-bf" />
+            <button class="btn primary" disabled="@_busyAdd" @onclick="Add">Add scenario</button>
+        </div>
+    </header>
+
+    @if (_list.Count == 0)
+    {
+        <p class="muted">No scenario currently in simulation mode.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead><tr><th>Scenario</th><th>Simulated</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var s in _list)
+                {
+                    <tr>
+                        <td class="mono">@s.Scenario</td>
+                        <td>
+                            @if (s.Simulated)
+                            {<span class="badge ok">active</span> }
+                            else
+                            {<span class="badge">inactive</span> }
+                        </td>
+                        <td><button class="btn mini danger" @onclick="async () => await Remove(s.Scenario!)">Remove</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private CsSimulationStatus? _status;
+    private List<CsSimulation> _list = new();
+    private string _newScenario = "";
+    private bool _busy, _busyAdd;
+    private string? _msg; private bool _err;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _status = await Cli.GetSimulationStatusAsync();
+            _list = (await Cli.ListSimulationsAsync()).ToList();
+        }
+        catch (Exception ex) { Log.LogDebug("simulation: {Msg}", ex.Message); }
+    }
+
+    private async Task Enable()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.EnableSimulationAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? "Simulation enabled globally. Decisions will be recorded but not enforced."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Disable()
+    {
+        _busy = true; _msg = null;
+        try
+        {
+            var r = await Cli.DisableSimulationAsync();
+            _err = !r.Success;
+            _msg = r.Success
+                ? "Simulation disabled. Decisions are now enforced."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            await Refresh();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Add()
+    {
+        _busyAdd = true; _msg = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_newScenario))
+            {
+                _err = true; _msg = "Scenario name is required."; return;
+            }
+            var r = await Cli.AddSimulationAsync(_newScenario.Trim());
+            _err = !r.Success;
+            _msg = r.Success
+                ? $"Scenario '{_newScenario}' added to simulation."
+                : $"Failed: {r.FlattenError() ?? r.Stderr}";
+            if (r.Success) { _newScenario = ""; await Refresh(); }
+        }
+        finally { _busyAdd = false; }
+    }
+
+    private async Task Remove(string scenario)
+    {
+        var r = await Cli.RemoveSimulationAsync(scenario);
+        _err = !r.Success;
+        _msg = r.Success
+            ? $"Scenario '{scenario}' removed from simulation."
+            : $"Failed: {r.FlattenError() ?? r.Stderr}";
+        await Refresh();
+    }
+}

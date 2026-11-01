@@ -1,0 +1,143 @@
+@page "/explain"
+@attribute [Authorize]
+@inject ICrowdSecCliService Cli
+@inject ILogger<ExplainPage> Log
+
+<PageTitle>Explain &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>Explain log pipeline</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="ClearOutput">Clear</button>
+        </div>
+    </header>
+    <p class="muted small">
+        Test how CrowdSec parses and processes a log line or a log file with the currently
+        installed parsers and scenarios. This is the equivalent of
+        <code class="mono">cscli explain --log "..." --type nginx</code>.
+    </p>
+
+    <div class="form-row">
+        <label>Acquisition type
+            <input type="text" @bind="_type" placeholder="nginx, syslog, apache2..." />
+        </label>
+        <label>Labels (optional)
+            <input type="text" @bind="_labels" placeholder="key:value,key2:value2" />
+        </label>
+    </div>
+
+    <div class="form-row">
+        <label style="flex: 1 1 100%;">Log line
+            <input type="text" @bind="_logLine" placeholder='Sep 19 18:33:22 scw sshd[24347]: pam_unix(sshd:auth): authentication failure; rhost=1.2.3.4' />
+        </label>
+        <button class="btn primary" disabled="@_busy" @onclick="ExplainLine">Explain line</button>
+    </div>
+
+    <div class="form-row">
+        <label style="flex: 1 1 100%;">Or log file path (inside the container)
+            <input type="text" @bind="_filePath" placeholder="/var/log/nginx/access.log" />
+        </label>
+        <label class="checkbox">
+            <input type="checkbox" @bind="_verbose" />
+            <span>Verbose</span>
+            <small class="muted">Show individual changes per parser.</small>
+        </label>
+        <button class="btn primary" disabled="@_busy" @onclick="ExplainFile">Explain file</button>
+    </div>
+
+    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+</section>
+
+@if (_output is not null)
+{
+    <section class="card">
+        <header>
+            <h2>Pipeline output</h2>
+            <div class="actions">
+                <span class="muted small">@(_output.Split('\n').Length) lines &middot; exit code @(_exitCode)</span>
+            </div>
+        </header>
+        <details class="raw" open>
+            <summary>cscli explain output</summary>
+            <pre class="mono">@_output</pre>
+        </details>
+    </section>
+}
+
+<section class="card">
+    <header><h2>Common acquisition types</h2></header>
+    <div class="muted small">
+        <p>The <code>--type</code> flag must match a label declared in <code class="mono">acquis.yaml</code> or one of the
+        well-known types shipped with CrowdSec parsers:</p>
+        <ul class="inline-list">
+            <li><code>syslog</code></li>
+            <li><code>nginx</code></li>
+            <li><code>apache2</code></li>
+            <li><code>sshd</code></li>
+            <li><code>docker</code></li>
+            <li><code>file</code></li>
+        </ul>
+        <p>The acquisition type tells CrowdSec which parser chain to apply. The label is matched against the
+        <code>type</code> field in <code class="mono">acquis.yaml</code>.</p>
+    </div>
+</section>
+
+@code {
+    private string _type = "syslog";
+    private string _labels = "";
+    private string _logLine = "";
+    private string _filePath = "";
+    private bool _verbose;
+    private bool _busy;
+    private string? _output;
+    private int _exitCode;
+    private string? _msg; private bool _err;
+
+    private async Task ExplainLine()
+    {
+        _busy = true; _msg = null; _output = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_logLine))
+            { _err = true; _msg = "Log line is required."; return; }
+            if (string.IsNullOrWhiteSpace(_type))
+            { _err = true; _msg = "Acquisition type is required."; return; }
+
+            var r = await Cli.ExplainLogLineAsync(_logLine, _type, NullIfBlank(_labels));
+            _exitCode = r.ExitCode;
+            _err = !r.Success;
+            _output = r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr);
+            if (!r.Success && string.IsNullOrWhiteSpace(_output))
+                _output = $"Exit code {r.ExitCode}\n\n{r.FlattenError()}";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ExplainFile()
+    {
+        _busy = true; _msg = null; _output = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_filePath))
+            { _err = true; _msg = "File path is required."; return; }
+            if (string.IsNullOrWhiteSpace(_type))
+            { _err = true; _msg = "Acquisition type is required."; return; }
+
+            var r = await Cli.ExplainLogFileAsync(_filePath, _type, _verbose);
+            _exitCode = r.ExitCode;
+            _err = !r.Success;
+            _output = r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr);
+            if (!r.Success && string.IsNullOrWhiteSpace(_output))
+                _output = $"Exit code {r.ExitCode}\n\n{r.FlattenError()}";
+        }
+        finally { _busy = false; }
+    }
+
+    private void ClearOutput()
+    {
+        _output = null; _msg = null; _exitCode = 0;
+    }
+
+    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}
