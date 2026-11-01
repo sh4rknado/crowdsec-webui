@@ -93,7 +93,11 @@ if [[ "$BUILD" -eq 1 ]] || ! podman image exists "$IMAGE_NAME"; then
         -f "$project_dir/Dockerfile" "$project_dir"
 fi
 
-for dir in /etc/crowdsec /var/lib/crowdsec /var/lib/crowdsec-manager /var/lib/GeoIP; do
+# Note: /var/lib/GeoIP is NOT created here. The GeoLite2-City.mmdb database
+# is baked into the image (see Dockerfile COPY deploy/GeoLite2-City.mmdb), so
+# no host bind-mount is needed for geolocation. To override the baked DB with
+# a fresher one, rebuild the image after replacing deploy/GeoLite2-City.mmdb.
+for dir in /etc/crowdsec /var/lib/crowdsec /var/lib/crowdsec-manager; do
     mkdir -p "$dir"
 done
 
@@ -135,7 +139,6 @@ podman run --detach \
     --volume /etc/crowdsec:/etc/crowdsec:Z \
     --volume /var/lib/crowdsec:/var/lib/crowdsec:Z \
     --volume /var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z \
-    --volume /var/lib/GeoIP:/var/lib/GeoIP:ro,Z \
     --volume /var/log:/var/log:ro,Z \
     "$IMAGE_NAME"
 

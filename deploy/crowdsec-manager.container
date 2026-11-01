@@ -53,8 +53,9 @@ Volume=/etc/crowdsec:/etc/crowdsec:Z
 Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
 # Manager app database (users, threat history, bouncer key, backups)
 Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z
-# GeoIP - mount your GeoLite2-City.mmdb here (download from maxmind.com)
-Volume=/var/lib/GeoIP:/var/lib/GeoIP:ro,Z
+# GeoIP: the GeoLite2-City.mmdb database is BAKED into the image (see the
+# Dockerfile COPY deploy/GeoLite2-City.mmdb). No host bind-mount is needed.
+# To override with a fresher DB, replace deploy/GeoLite2-City.mmdb and rebuild.
 # Host logs that CrowdSec should ingest (read-only).
 # Edit /etc/crowdsec/acquis.yaml (or drop a file in /etc/crowdsec/acquis.d/)
 # to point CrowdSec at log paths visible here, e.g. /var/log/nginx/access.log.

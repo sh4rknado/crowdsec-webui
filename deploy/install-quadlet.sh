@@ -35,7 +35,7 @@ install -m 0644 "$QUADLET_SRC" "$QUADLET_DST"
 
 # Make sure the bind-mount directories exist so the container does not create
 # them with root:root permissions the host admin cannot edit.
-for d in /etc/crowdsec /var/lib/crowdsec /var/lib/crowdsec-manager /var/lib/GeoIP; do
+for d in /etc/crowdsec /var/lib/crowdsec /var/lib/crowdsec-manager; do
     mkdir -p "$d"
 done
 

@@ -92,6 +92,13 @@ COPY --from=build /app ./
 # Helper directories
 RUN mkdir -p /var/lib/crowdsec-manager/backups /var/lib/GeoIP
 
+# Bake the GeoLite2-City database into the image so geolocation works out of the
+# box, with NO host bind-mount required. The file is read from deploy/ in the
+# build context (committed to the repo). To update the DB, replace the file in
+# deploy/ and rebuild. $GEOIP_DB_PATH above already points here.
+COPY deploy/GeoLite2-City.mmdb /var/lib/GeoIP/GeoLite2-City.mmdb
+RUN test -s /var/lib/GeoIP/GeoLite2-City.mmdb
+
 # Entrypoint: bootstrap CrowdSec, register the manager as a bouncer, then run both
 COPY deploy/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
