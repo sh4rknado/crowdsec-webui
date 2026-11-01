@@ -1,2 +1,0 @@
-# crowdsec-webui
-crowdsec-webui
