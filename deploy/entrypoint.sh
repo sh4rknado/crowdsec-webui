@@ -3,7 +3,7 @@
 #
 # Single-container design: this PID 1 supervises BOTH:
 #   1. the CrowdSec engine (daemon + LAPI on 8080)
-#   2. the ASP.NET 8 Blazor manager UI (on 8081)
+#   2. the ASP.NET 10 Blazor manager UI (on 8081)
 #
 # Responsibilities:
 #   1. Ensure CrowdSec data + config dirs exist (they come from bind mounts).

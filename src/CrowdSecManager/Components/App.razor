@@ -1,24 +1,23 @@
-@using CrowdSecManager.Components.Layout
-@using Microsoft.AspNetCore.Authorization
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using CrowdSecManager.Components
+@using Microsoft.AspNetCore.Components.Web
 
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-            <NotAuthorized>
-                @if (context.User.Identity?.IsAuthenticated != true)
-                {
-                    <RedirectToLogin />
-                }
-                else
-                {
-                    <div class="forbidden">
-                        <h1>403 - Forbidden</h1>
-                        <p>You do not have access to this page.</p>
-                        <a href="/">Back to dashboard</a>
-                    </div>
-                }
-            </NotAuthorized>
-        </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <base href="/" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/soc.css" />
+    <link rel="stylesheet" href="css/threatmap.css" />
+</head>
+<body class="soc">
+    <Routes @rendermode="InteractiveServer" />
+    <script src="js/threatmap.js" defer></script>
+    <script src="js/terminal.js" defer></script>
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

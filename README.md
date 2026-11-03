@@ -1,6 +1,6 @@
 # CrowdSec Manager
 
-An ASP.NET 8 Blazor Server application that wraps and extends
+An ASP.NET 10 Blazor Server application that wraps and extends
 [CrowdSec](https://github.com/crowdsecurity/crowdsec) into a single
 admin-friendly web console: manage the hub (collections, parsers,
 scenarios), edit configuration, add or remove manual IP bans, and watch
@@ -40,7 +40,7 @@ a single `systemctl start`.
 │                  Podman container (crowdsec-manager)                 │
 │                                                                      │
 │   ┌────────────────────┐         ┌──────────────────────────────┐    │
-│   │  CrowdSec daemon   │  LAPI   │   CrowdSec Manager (.NET 8)  │    │
+│   │  CrowdSec daemon   │  LAPI   │   CrowdSec Manager (.NET 10)  │    │
 │   │  + cscli           │ ◄─────► │   Blazor Server + SignalR    │    │
 │   │  (port 8080)       │  HTTP   │   port 8081                  │    │
 │   └────────────────────┘         └──────────────┬───────────────┘    │
@@ -534,7 +534,7 @@ log explicitly maps each script section to the corresponding TODO line.
 
 ### Run locally (without Docker)
 
-Prerequisites: .NET 8 SDK, `cscli` on PATH (or set
+Prerequisites: .NET 10 SDK, `cscli` on PATH (or set
 `CrowdSec__CliPath=/path/to/cscli`).
 
 ```bash

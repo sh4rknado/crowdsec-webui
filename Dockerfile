@@ -3,7 +3,7 @@
 #
 # One container ships BOTH:
 #   - the CrowdSec engine (daemon + LAPI on 8080)  -> from the base image
-#   - the ASP.NET 8 Blazor manager UI (on 8081)    -> added on top
+#   - the ASP.NET 10 Blazor manager UI (on 8081)    -> added on top
 #
 # The two processes share the same container network namespace, so the
 # manager reaches LAPI at http://127.0.0.1:8080 without crossing the
@@ -14,7 +14,7 @@
 # Global build arguments (declared BEFORE the first FROM so they can be used
 # in FROM lines). Override on the command line, e.g.:
 #   podman build --build-arg CROWDSEC_IMAGE=crowdsecurity/crowdsec:v1.6.8 ...
-ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:8.0
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
 ARG CROWDSEC_IMAGE=crowdsecurity/crowdsec:latest
 
 # ---------- Stage 1: build the .NET app ----------
@@ -49,7 +49,7 @@ RUN test -f /docker_start.sh \
 # Switch to root for system-level installs
 USER root
 
-# Install ASP.NET 8 runtime + jq + ca-certificates + iproute2 (for cscli LAPI reload
+# Install ASP.NET 10 runtime + jq + ca-certificates + iproute2 (for cscli LAPI reload
 # and for the host-side port preflight). The official CrowdSec image is Alpine Linux,
 # so use apk and the musl runtime.
 RUN apk add --no-cache \
@@ -64,7 +64,7 @@ RUN apk add --no-cache \
         tini \
     && curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --channel 8.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
+    && /tmp/dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
     && ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet \
     && rm -f /tmp/dotnet-install.sh
 

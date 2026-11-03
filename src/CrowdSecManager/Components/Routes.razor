@@ -1,0 +1,24 @@
+@using CrowdSecManager.Components.Layout
+@using Microsoft.AspNetCore.Authorization
+
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="forbidden">
+                        <h1>403 - Forbidden</h1>
+                        <p>You do not have access to this page.</p>
+                        <a href="/">Back to dashboard</a>
+                    </div>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+</Router>

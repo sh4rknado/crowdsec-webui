@@ -15,6 +15,50 @@ namespace CrowdSecManager.Tests;
 public sealed class HttpSmokeTests
 {
     [Fact]
+    public async Task BlazorWebAppServesInteractiveRuntime()
+    {
+        using var factory = new ManagerFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.Timeout = TimeSpan.FromSeconds(15);
+
+        using var runtime = await client.GetAsync("/_framework/blazor.web.js");
+        Assert.Equal(HttpStatusCode.OK, runtime.StatusCode);
+        Assert.Contains("javascript", runtime.Content.Headers.ContentType?.MediaType,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True((await runtime.Content.ReadAsByteArrayAsync()).Length > 10_000);
+    }
+
+    [Fact]
+    public async Task HomePageReferencesBlazorWebRuntime()
+    {
+        using var factory = new ManagerFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.Timeout = TimeSpan.FromSeconds(15);
+
+        using var home = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, home.StatusCode);
+        Assert.Contains("_framework/blazor.web.js", await home.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task InteractiveServerHubCanNegotiateConnection()
+    {
+        using var factory = new ManagerFactory();
+        using var client = factory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(15);
+
+        using var negotiate = await client.PostAsync("/_blazor/negotiate?negotiateVersion=1", content: null);
+        Assert.Equal(HttpStatusCode.OK, negotiate.StatusCode);
+        Assert.Contains("connectionToken", await negotiate.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task HealthEndpointReturnsOkJson()
     {
         using var factory = new ManagerFactory();

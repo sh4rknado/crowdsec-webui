@@ -66,12 +66,12 @@ builder.Services.ConfigureApplicationCookie(o =>
 
 // ---- Blazor Server ----
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor(o =>
-{
-    o.DetailedErrors = builder.Environment.IsDevelopment();
-    o.DisconnectedCircuitMaxRetained = 30;
-    o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
-});
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents(o =>
+    {
+        o.DetailedErrors = builder.Environment.IsDevelopment();
+    });
 
 // ---- SignalR (used by the live threat map) ----
 builder.Services.AddSignalR(o =>
@@ -106,10 +106,12 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
-app.MapBlazorHub();
+app.MapStaticAssets();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", ts = DateTimeOffset.UtcNow }));
-app.MapFallbackToPage("/_Host");
+app.MapRazorComponents<CrowdSecManager.Components.App>()
+    .AddInteractiveServerRenderMode();
 app.MapRazorPages();
 
 // ---- DB bootstrap + seed admin ----
