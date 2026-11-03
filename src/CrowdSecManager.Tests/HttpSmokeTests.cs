@@ -3,11 +3,16 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using CrowdSecManager.Services;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CrowdSecManager.Tests;
@@ -34,7 +39,7 @@ public sealed class HttpSmokeTests
     [Fact]
     public async Task HomePageReferencesBlazorWebRuntime()
     {
-        using var factory = new ManagerFactory();
+        using var factory = new ManagerFactory(authenticated: true);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -83,7 +88,7 @@ public sealed class HttpSmokeTests
 
         using var protectedResponse = await client.GetAsync("/decisions");
         Assert.Equal(HttpStatusCode.Redirect, protectedResponse.StatusCode);
-        Assert.Equal("/login?returnUrl=%2Fdecisions", protectedResponse.Headers.Location!.PathAndQuery);
+        Assert.Equal("/login?ReturnUrl=%2Fdecisions", protectedResponse.Headers.Location!.PathAndQuery);
 
         using var loginResponse = await client.GetAsync("/login");
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
@@ -147,7 +152,7 @@ public sealed class HttpSmokeTests
 
         using var protectedAfterLogout = await client.GetAsync("/decisions");
         Assert.Equal(HttpStatusCode.Redirect, protectedAfterLogout.StatusCode);
-        Assert.Equal("/login?returnUrl=%2Fdecisions", protectedAfterLogout.Headers.Location!.PathAndQuery);
+        Assert.Equal("/login?ReturnUrl=%2Fdecisions", protectedAfterLogout.Headers.Location!.PathAndQuery);
     }
 
     [Fact]
@@ -190,7 +195,7 @@ public sealed class HttpSmokeTests
         return match.Groups[1].Value;
     }
 
-    private sealed class ManagerFactory : WebApplicationFactory<Program>
+    private sealed class ManagerFactory(bool authenticated = false) : WebApplicationFactory<Program>
     {
         private readonly string _dataRoot = Path.Combine(Path.GetTempPath(), "CrowdSecManager.HttpTests", Guid.NewGuid().ToString("N"));
 
@@ -209,6 +214,17 @@ public sealed class HttpSmokeTests
 
             builder.ConfigureTestServices(services =>
             {
+                if (authenticated)
+                {
+                    services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = TestAuthenticationHandler.TestScheme;
+                        options.DefaultChallengeScheme = TestAuthenticationHandler.TestScheme;
+                        options.DefaultScheme = TestAuthenticationHandler.TestScheme;
+                    }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                        TestAuthenticationHandler.TestScheme, _ => { });
+                }
+
                 var threatFeed = services.FirstOrDefault(descriptor =>
                     descriptor.ServiceType == typeof(IHostedService)
                     && descriptor.ImplementationType == typeof(ThreatFeedService));
@@ -220,6 +236,23 @@ public sealed class HttpSmokeTests
         {
             base.Dispose(disposing);
             if (disposing && Directory.Exists(_dataRoot)) Directory.Delete(_dataRoot, recursive: true);
+        }
+    }
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        public const string TestScheme = "HttpSmokeTest";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var identity = new ClaimsIdentity(
+                [new Claim(ClaimTypes.Name, "http-smoke-test")], TestScheme);
+            var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), TestScheme);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
 }

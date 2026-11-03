@@ -20,9 +20,5 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\CrowdSecManager\CrowdSecManager.csproj" />
-    <Compile Include="..\CrowdSecManager.Infrastructure\Services\CommandLineTokenizer.cs" Link="Infrastructure\CommandLineTokenizer.cs" />
-    <Compile Include="..\CrowdSecManager.Core\Repositories\ITerminalRepository.cs" Link="Core\ITerminalRepository.cs" />
-    <Compile Include="..\CrowdSecManager.ViewModels\TerminalViewModel.cs" Link="ViewModels\TerminalViewModel.cs" />
-    <Compile Include="..\CrowdSecManager.ViewModels\ViewModelBase.cs" Link="ViewModels\ViewModelBase.cs" />
   </ItemGroup>
 </Project>

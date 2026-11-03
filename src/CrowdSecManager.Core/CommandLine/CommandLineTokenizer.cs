@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace CrowdSecManager.Services;
+namespace CrowdSecManager.Core.CommandLine;
 
 /// <summary>
 /// Tokenize a free-form command line into argv tokens, the way a POSIX

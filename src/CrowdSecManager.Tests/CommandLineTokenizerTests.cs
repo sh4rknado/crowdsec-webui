@@ -1,4 +1,4 @@
-using CrowdSecManager.Services;
+using CrowdSecManager.Core.CommandLine;
 using Xunit;
 
 namespace CrowdSecManager.Tests;

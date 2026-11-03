@@ -15,6 +15,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\CrowdSecManager.Core\Repositories\ITerminalRepository.cs" Link="Core\Repositories\ITerminalRepository.cs" />
+    <Compile Include="..\CrowdSecManager.Core\CommandLine\CommandLineTokenizer.cs" Link="Core\CommandLine\CommandLineTokenizer.cs" />
+    <Compile Include="..\CrowdSecManager.Infrastructure\DependencyInjection.cs" Link="Infrastructure\DependencyInjection.cs" />
+    <Compile Include="..\CrowdSecManager.Infrastructure\GlobalUsings.cs" Link="Infrastructure\GlobalUsings.cs" />
+    <Compile Include="..\CrowdSecManager.Infrastructure\Repositories\*.cs" Link="Infrastructure\Repositories\%(Filename)%(Extension)" />
+    <Compile Include="..\CrowdSecManager.ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />

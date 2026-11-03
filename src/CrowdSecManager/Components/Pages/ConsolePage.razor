@@ -1,6 +1,6 @@
 @page "/console"
 @attribute [Authorize]
-@inject ICrowdSecCliService Cli
+@inject CrowdSecManager.ViewModels.TerminalViewModel Vm
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -10,14 +10,14 @@
     <header>
         <h2>crowdsec-cli terminal</h2>
         <div class="actions">
-            <button class="btn ghost small" disabled="@_busy" @onclick="Clear">Clear</button>
-            <button class="btn ghost small" disabled="@_busy" @onclick="ShowHelp">Help</button>
+            <button class="btn ghost small" disabled="@Vm.IsBusy" @onclick="Vm.Clear">Clear</button>
+            <button class="btn ghost small" disabled="@Vm.IsBusy" @onclick="Vm.ShowHelp">Help</button>
         </div>
     </header>
 
     <div class="terminal" id="cs-terminal">
         <div class="terminal-output" @ref="_outputRef">
-            @foreach (var line in _lines)
+            @foreach (var line in Vm.Lines)
             {
                 <div class="tline @line.Class">
                     @if (line.IsPrompt)
@@ -27,7 +27,7 @@
                     <span class="ttext">@line.Text</span>
                 </div>
             }
-            @if (_busy)
+            @if (Vm.IsBusy)
             {
                 <div class="tline muted"><span class="ttext">running...</span></div>
             }
@@ -41,10 +41,10 @@
                    autocorrect="off"
                    spellcheck="false"
                    placeholder="decisions list   (type 'help' for common commands)"
-                   value="@_input"
+                   value="@Vm.Input"
                    @oninput="OnInput"
                    @onkeydown="OnKeyDown"
-                   disabled="@_busy" />
+                   disabled="@Vm.IsBusy" />
         </div>
     </div>
 </section>
@@ -69,26 +69,12 @@
 </section>
 
 @code {
-    private sealed class TLine
-    {
-        public string Text { get; set; } = "";
-        public string Class { get; set; } = "";
-        public bool IsPrompt { get; set; }
-    }
-
-    private readonly List<TLine> _lines = new();
-    private readonly List<string> _history = new();
-    private string _input = "";
-    private bool _busy;
-    private int _historyCursor = -1;   // -1 = not browsing history
     private ElementReference _outputRef;
-    private CancellationTokenSource? _cts;
 
-    protected override void OnInitialized()
-    {
-        _lines.Add(new TLine { Text = "CrowdSec CLI terminal. Type 'help' for common commands, 'clear' to wipe the screen.", Class = "muted" });
-        _lines.Add(new TLine { Text = "Everything runs as cscli <your input>. No shell, no pipes, no redirection.", Class = "muted" });
-    }
+    protected override void OnInitialized() => Vm.PropertyChanged += OnViewModelChanged;
+
+    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+        _ = InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -100,151 +86,26 @@
         catch { /* JS not ready yet during prerender - safe to ignore */ }
     }
 
-    private void OnInput(ChangeEventArgs e) => _input = e.Value?.ToString() ?? "";
+    private void OnInput(ChangeEventArgs e) => Vm.Input = e.Value?.ToString() ?? "";
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         switch (e.Key)
         {
             case "Enter":
-                await Execute();
+                await Vm.ExecuteAsync(Vm.Input);
                 break;
             case "ArrowUp":
-                BrowseHistory(-1);
+                Vm.BrowseHistory(-1);
                 break;
             case "ArrowDown":
-                BrowseHistory(1);
+                Vm.BrowseHistory(1);
                 break;
         }
-    }
-
-    private void BrowseHistory(int delta)
-    {
-        if (_history.Count == 0) return;
-        if (_historyCursor < 0)
-        {
-            // start browsing from the last entry (only on ArrowUp)
-            if (delta < 0) _historyCursor = _history.Count - 1;
-            else return;
-        }
-        else
-        {
-            _historyCursor += delta;
-            if (_historyCursor >= _history.Count) { _historyCursor = -1; _input = ""; return; }
-            if (_historyCursor < 0) { _input = ""; return; }
-        }
-        _input = _history[_historyCursor];
-    }
-
-    private async Task Execute()
-    {
-        var raw = _input.Trim();
-        _input = "";
-        if (string.IsNullOrWhiteSpace(raw)) return;
-
-        // Echo the prompt line
-        _lines.Add(new TLine { Text = raw, Class = "cmd", IsPrompt = true });
-
-        // Built-in commands handled locally
-        var firstToken = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-        if (firstToken.Equals("clear", StringComparison.OrdinalIgnoreCase))
-        {
-            _lines.Clear();
-            return;
-        }
-        if (firstToken.Equals("help", StringComparison.OrdinalIgnoreCase))
-        {
-            ShowHelp();
-            return;
-        }
-        if (firstToken.Equals("history", StringComparison.OrdinalIgnoreCase))
-        {
-            _lines.Add(new TLine { Text = string.Join('\n', _history.Select((c, i) => $"  {i + 1,3}  {c}")), Class = "out" });
-            return;
-        }
-
-        // Record in history (skip duplicates of the last entry)
-        if (_history.Count == 0 || _history[^1] != raw)
-            _history.Add(raw);
-        _historyCursor = -1;
-
-        _busy = true;
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-        try
-        {
-            var r = await Cli.RunTerminalAsync(raw, _cts.Token);
-            var sb = new System.Text.StringBuilder();
-            if (!string.IsNullOrEmpty(r.Stdout)) sb.Append(r.Stdout);
-            if (!string.IsNullOrWhiteSpace(r.Stderr))
-            {
-                if (sb.Length > 0 && !sb.ToString().EndsWith('\n')) sb.Append('\n');
-                sb.Append(r.Stderr);
-            }
-            if (sb.Length == 0)
-                sb.Append($"(no output, exit code {r.ExitCode})");
-            else if (r.ExitCode != 0)
-                sb.Append($"\n[exit code {r.ExitCode}]");
-
-            var text = sb.ToString().TrimEnd('\r', '\n');
-            // Split multi-line output so each terminal line wraps independently.
-            foreach (var l in text.Split('\n'))
-                _lines.Add(new TLine { Text = l, Class = r.ExitCode == 0 ? "out" : "err" });
-        }
-        catch (OperationCanceledException)
-        {
-            _lines.Add(new TLine { Text = "[command timed out after 5 minutes]", Class = "err" });
-        }
-        catch (Exception ex)
-        {
-            _lines.Add(new TLine { Text = $"[error] {ex.Message}", Class = "err" });
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private Task ShowHelp()
-    {
-        var help = string.Join('\n', new[]
-        {
-            "Common cscli commands:",
-            "  decisions list                       # list active bans",
-            "  decisions add -i 1.2.3.4 -d 4h       # ban an IP for 4h",
-            "  decisions delete -i 1.2.3.4          # remove a ban",
-            "  alerts list                          # recent alerts",
-            "  bouncers list                        # registered bouncers",
-            "  machines list                        # registered machines",
-            "  hub update                           # refresh hub index",
-            "  hub upgrade                          # upgrade all hub items",
-            "  collections list                     # installed collections",
-            "  metrics                              # engine metrics",
-            "  config show                          # merged configuration",
-            "  config backup /tmp/backup.tgz        # backup config",
-            "  lapi status                          # LAPI health",
-            "  explain --file /var/log/nginx/access.log --type nginx",
-            "  version                              # cscli + crowdsec version",
-            "",
-            "Add -o json to any list command for machine-readable output.",
-            "",
-            "Local commands: help, clear, history. Up/Down arrows recall history."
-        });
-        foreach (var l in help.Split('\n'))
-            _lines.Add(new TLine { Text = l, Class = "out" });
-        return Task.CompletedTask;
-    }
-
-    private Task Clear()
-    {
-        _lines.Clear();
-        _lines.Add(new TLine { Text = "(screen cleared)", Class = "muted" });
-        return Task.CompletedTask;
     }
 
     public void Dispose()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
+        Vm.PropertyChanged -= OnViewModelChanged;
     }
 }

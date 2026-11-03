@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using CrowdSecManager.Core.CommandLine;
 using CrowdSecManager.Models;
 using Microsoft.Extensions.Options;
 
@@ -198,10 +199,7 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
 
     public async Task<CliResult> RunTerminalAsync(string commandLine, CancellationToken ct = default)
     {
-        var argv = TokenizeCommandLine(commandLine);
-        // Strip a leading literal "cscli" if the user typed it explicitly.
-        if (argv.Count > 0 && string.Equals(argv[0], "cscli", StringComparison.OrdinalIgnoreCase))
-            argv.RemoveAt(0);
+        var argv = CommandLineTokenizer.TokenizeAndStripCscli(commandLine);
 
         if (argv.Count == 0)
             return new CliResult { ExitCode = 0, Stdout = "", Stderr = "No command entered. Type 'help' for common cscli commands.", Duration = TimeSpan.Zero };
@@ -230,33 +228,6 @@ public sealed class CrowdSecCliService : ICrowdSecCliService
             _log.LogWarning(ex, "Terminal command failed: {Cmd}", commandLine);
             return new CliResult { ExitCode = -1, Stderr = ex.Message, Duration = TimeSpan.Zero };
         }
-    }
-
-    /// <summary>
-    /// Split a command line into argv tokens. Respects double quotes (which are
-    /// removed) and backslash escaping of the next character. Whitespace outside
-    /// quotes separates tokens. This mirrors how a POSIX shell tokenizes a simple
-    /// command line, but without any shell expansion, redirection or piping.
-    /// </summary>
-    private static List<string> TokenizeCommandLine(string? line)
-    {
-        var tokens = new List<string>();
-        if (string.IsNullOrWhiteSpace(line)) return tokens;
-        var sb = new StringBuilder();
-        bool inQuotes = false;
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
-            if (c == '\\' && i + 1 < line.Length) { sb.Append(line[++i]); continue; }
-            if (c == '"') { inQuotes = !inQuotes; continue; }
-            if (char.IsWhiteSpace(c) && !inQuotes)
-            {
-                if (sb.Length > 0) { tokens.Add(sb.ToString()); sb.Clear(); }
-            }
-            else sb.Append(c);
-        }
-        if (sb.Length > 0) tokens.Add(sb.ToString());
-        return tokens;
     }
 
     public async Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default)
