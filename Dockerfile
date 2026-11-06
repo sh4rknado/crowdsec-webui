@@ -36,6 +36,10 @@ RUN dotnet publish ./CrowdSecManager/CrowdSecManager.csproj \
     /p:UseAppHost=false \
     --no-restore
 
+# Reuse the official ASP.NET runtime instead of downloading dotnet-install.sh
+# during the final image build.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS aspnet-runtime
+
 # ---------- Stage 2: runtime (CrowdSec + ASP.NET in ONE container) ----------
 # Pin a version in production instead of :latest, e.g. crowdsecurity/crowdsec:v1.6.x
 FROM ${CROWDSEC_IMAGE} AS runtime
@@ -49,9 +53,8 @@ RUN test -f /docker_start.sh \
 # Switch to root for system-level installs
 USER root
 
-# Install ASP.NET 10 runtime + jq + ca-certificates + iproute2 (for cscli LAPI reload
-# and for the host-side port preflight). The official CrowdSec image is Alpine Linux,
-# so use apk and the musl runtime.
+# Install supporting tools. ASP.NET runtime files are copied from the official
+# Alpine runtime stage below, without fetching an installer script.
 RUN apk add --no-cache \
         bash \
         ca-certificates \
@@ -61,12 +64,10 @@ RUN apk add --no-cache \
         jq \
         libstdc++ \
         procps \
-        tini \
-    && curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
-    && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
-    && ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet \
-    && rm -f /tmp/dotnet-install.sh
+        tini
+
+COPY --from=aspnet-runtime /usr/share/dotnet /usr/share/dotnet
+RUN ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
 
 # The official CrowdSec image ships cscli + crowdsec under /usr/local/bin.
 # Add /usr/bin symlinks so any config still pointing at /usr/bin/cscli keeps

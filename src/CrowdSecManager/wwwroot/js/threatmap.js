@@ -1,10 +1,10 @@
 /*
  * threatmap.js - live threat-map renderer for CrowdSec Manager
  *
- * - Renders a dark SOC-style world map on a <canvas>
- * - Uses an equirectangular projection (lat/lon -> x/y)
+ * - Renders a dark SOC-style world map on a <canvas> with D3.js geo tools
+ * - Uses D3's equirectangular projection and geoPath for country geometry
  * - Animates threat arcs from attacker source -> protected home
- * - Loads TopoJSON world-atlas from CDN with a dotted fallback if offline
+ * - Loads local TopoJSON world-atlas data with a dotted fallback if unavailable
  *
  * Public API (called via JS interop from Blazor):
  *   threatMap.init(canvasId, opts)
@@ -22,6 +22,8 @@
     let home = { lat: 50.85, lon: 4.35, label: "Home" };
     let geoAvailable = false;
     let worldFeatures = null;       // GeoJSON Feature[]
+    let projection = null;
+    let worldPath = null;
     let arcs = [];                  // active animated arcs
     let ripples = [];               // expanding circles on impact
     let sources = new Map();        // ipKey -> { x, y, count, lastSeen }
@@ -33,8 +35,13 @@
     const SOURCE_RETENTION_MS = 60_000;
     const WORLD_MAP_FETCH_TIMEOUT_MS = 4000;
 
-    // ---- Equirectangular projection ----
+    // ---- Geographic projection ----
     function project(lat, lon) {
+        if (projection) {
+            const point = projection([lon, lat]);
+            return { x: point[0], y: point[1] };
+        }
+        // Fallback when the local D3 bundle is unavailable.
         const x = (lon + 180) / 360 * width;
         const y = (90 - lat) / 180 * height;
         return { x, y };
@@ -42,18 +49,29 @@
 
     // ---- World map loading ----
     async function loadWorldTopo() {
-        const cdn = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+        const worldDataUrl = "lib/countries-110m.json";
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), WORLD_MAP_FETCH_TIMEOUT_MS);
         try {
-            const r = await fetch(cdn, { cache: "force-cache", signal: controller.signal });
+            const r = await fetch(worldDataUrl, { cache: "force-cache", signal: controller.signal });
             if (!r.ok) throw new Error("HTTP " + r.status);
             const topo = await r.json();
             // Minimal TopoJSON -> GeoJSON FeatureCollection
-            const fc = topoToGeo(topo, "countries");
+            const countries = topo && topo.objects && topo.objects.countries;
+            if (!countries || !Array.isArray(topo.arcs)) {
+                throw new Error("world-atlas response is not a countries TopoJSON topology");
+            }
+            // The bundled topojson-client handles delta encoded arcs, reversed
+            // arc indexes, and shared borders.
+            const fc = window.topojson && typeof window.topojson.feature === "function"
+                ? window.topojson.feature(topo, countries)
+                : topoToGeo(topo, "countries");
+            if (!fc || !Array.isArray(fc.features)) {
+                throw new Error("Could not convert world-atlas countries to GeoJSON");
+            }
             return fc.features || [];
         } catch (e) {
-            console.warn("threatmap: world-atlas CDN unreachable, using dot fallback", e);
+            console.warn("threatmap: local world map unavailable, using dot fallback", e);
             return null;
         } finally {
             clearTimeout(timeoutId);
@@ -69,6 +87,7 @@
 
         function decodeArc(i) {
             const a = arcs[i];
+            if (!Array.isArray(a)) throw new Error("Invalid TopoJSON arc index: " + i);
             const out = [];
             let x = 0, y = 0;
             for (let j = 0; j < a.length; j += 2) {
@@ -143,8 +162,17 @@
             ctx.fillStyle = "rgba(48, 80, 120, 0.55)";
             ctx.strokeStyle = "rgba(140, 200, 240, 0.35)";
             ctx.lineWidth = 1;
-            for (const f of worldFeatures) {
-                drawFeature(f.geometry);
+            if (worldPath) {
+                for (const feature of worldFeatures) {
+                    ctx.beginPath();
+                    worldPath(feature);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            } else {
+                for (const f of worldFeatures) {
+                    drawFeature(f.geometry);
+                }
             }
         } else {
             drawWorldDots();
@@ -342,6 +370,11 @@
         canvas.style.width = width + "px";
         canvas.style.height = height + "px";
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (window.d3) {
+            projection = window.d3.geoEquirectangular()
+                .fitExtent([[12, 12], [width - 12, height - 12]], { type: "Sphere" });
+            worldPath = window.d3.geoPath(projection).context(ctx);
+        }
     }
 
     ns.init = async function (canvasId, opts) {

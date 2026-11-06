@@ -28,7 +28,7 @@
 - [x] Ajout de décision choisit `--range` pour une valeur CIDR et `--ip` pour une IP seule.
 - [x] La carte ne marque plus comme traitées les alertes qui dépassent la limite de 20 événements d’un cycle.
 - [x] La carte met en tampon les événements reçus durant l’initialisation JavaScript puis les réconcilie au snapshot sans perdre ni doubler les alertes.
-- [x] La carte borne ses marqueurs source à 300 IP, expire les sources après 60 s, crée une seule ripple d’impact par arc, actualise le compteur à l’expiration et abandonne le CDN après 4 s avec repli en points.
+- [x] La carte borne ses marqueurs source à 300 IP, expire les sources après 60 s, crée une seule ripple d’impact par arc et charge D3, TopoJSON et les pays depuis les fichiers locaux.
 - [x] Le fallback GeoIP produit des coordonnées stables entre redémarrages ; la normalisation préserve IPv6 et reconnaît les plages IPv6 privées/locales.
 
 ## Vérifié dans cet environnement
@@ -47,7 +47,7 @@
 - [x] Tester `crowdsec -t -c /etc/crowdsec/config.yaml` sur la configuration issue de l’image CrowdSec `v1.8.2` ; la validation se termine par `Configuration test done` avec code 0.
 - [x] Envoyer un vrai `SIGHUP` au moteur CrowdSec du conteneur, puis vérifier que `cscli lapi status` réussit et que le conteneur reste actif.
 - [x] Vérifier le polling périodique réel de `ThreatFeedService` : les journaux de l’image reconstruite montrent plusieurs cycles `/health` et `/v1/decisions` avec HTTP 200 auprès du LAPI CrowdSec actif.
-- [x] Tests JavaScript du renderer exécutés dans le runtime Node de la session : 4 assertions passent sur le plafond/LRU des sources, leur expiration, le compteur/ripple et le timeout CDN (`tests/javascript/threatmap.test.mjs`).
+- [x] Tests JavaScript du renderer : 7 tests couvrent les sources, les arcs, le cycle de vie et le chargement des données cartographiques locales (`tests/javascript/threatmap.test.mjs`).
 - [x] Dépôt Git local initialisé et premier commit créé (voir l’historique Git).
 
 ## À faire ou à valider en environnement de déploiement
