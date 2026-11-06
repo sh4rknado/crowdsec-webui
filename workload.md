@@ -64,7 +64,7 @@ names are mapped to those keys by the entrypoint and application.
 | `ApplicationUser` / `IdentityRole` | — | ASP.NET Identity entities. Roles seeded at first boot: `Administrator`. |
 | `ICrowdSecCliService` | Singleton | Wraps `cscli` via `Process.Start` with async stdout/stderr streaming, JSON output auto-append, configurable timeout. All hub/decisions/bouncers/machines/alerts commands go through this. |
 | `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CrowdSec__BouncerApiKey` (the entrypoint maps the legacy `CROWDSEC_BOUNCER_APIKEY`); used for health and decision reads. Bouncer credentials cannot search alerts. |
-| `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over `GeoLite2-City.mmdb`. Falls back to a hash-derived location when no DB is mounted. Resolves private IPs to the home location. |
+| `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over the image-bundled `GeoLite2-City.mmdb`. Falls back to deterministic unknown coordinates if the DB is missing or unreadable. Resolves private IPs to the configured home location. |
 | `IConfigFileService` | Scoped | Reads/writes whitelisted top-level CrowdSec YAML plus YAML under `acquis.d`, `notifications`, parsers, scenarios, postoverflows, collections, contexts and AppSec config directories. Validates syntax with YamlDotNet and atomically replaces files. Tar-backs up `/etc/crowdsec/` on demand. |
 | `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and publishes events through `ThreatMapEventBus`. Falls back to `cscli` for decisions if LAPI is unreachable. |
 | `ThreatMapEventBus` | Singleton | In-process fan-out and bounded event snapshot for threat-map components. Events reach authenticated browsers only through their existing Blazor Server circuits; no separate public threat-map hub is mapped. |
@@ -75,13 +75,10 @@ names are mapped to those keys by the entrypoint and application.
 - The threat map subscribes to `ThreatMapEventBus` in its authenticated Blazor
   circuit. New events are forwarded to `window.threatMap.plotThreat(ev)` via
   JS interop; no anonymous `/hubs/threatmap` endpoint is exposed.
-- `wwwroot/js/threatmap.js` renders a `<canvas>`:
-  - Loads TopoJSON `countries-110m.json` from jsDelivr CDN (cached) for the
-    world coastline. Falls back to a deterministic dot pattern if offline.
-  - Equirectangular projection (`(lon, lat) -> (x, y)`).
-  - Quadratic-Bézier arcs from source to home, with a trail and severity color.
-  - Pulsing source dots, expanding impact ripples, and a fading ring around the home marker.
-  - 60 simultaneous arcs max (`MAX_ARCS`); older arcs are evicted FIFO.
+- `wwwroot/js/threatmap.js` renders an interactive Leaflet map with OpenStreetMap
+  tiles. Leaflet and map tiles require browser internet access and display the
+  required map attribution. Threat events appear as severity-colored source
+  markers and temporary arcs to the configured home location.
 
 ---
 
@@ -169,7 +166,7 @@ host service manually; the manager container cannot signal host processes.
 | `/var/lib/crowdsec/` | `/var/lib/crowdsec/` (rw) | SQLite + blob | CrowdSec database (alerts, decisions, metrics, machines) | **Yes** — stop container, `cp -a` |
 | `/var/lib/crowdsec-manager/` | `/var/lib/crowdsec-manager/` (rw) | SQLite | App DB: users, threat history (30-day window) | **Yes** — `app.db` can be hot-copied |
 | `/var/lib/crowdsec-manager/backups/` | same | tgz | Dashboard-generated tar snapshots of `/etc/crowdsec/` | Yes |
-| `/var/lib/GeoIP/GeoLite2-City.mmdb` | `/var/lib/GeoIP/` (ro) | MaxMind binary | IP geolocation | Yes (external download) |
+| `/var/lib/GeoIP/GeoLite2-City.mmdb` | Same path inside image | MaxMind binary bundled from `deploy/GeoLite2-City.mmdb` | Approximate IP geolocation for threat-map events | Included in image; update source file and rebuild |
 | `/var/log/` | `/var/log/` (ro) | text | CrowdSec log sources | n/a (host logs) |
 
 > The `:Z` suffix on every `Volume=` line tells Podman to apply SELinux
@@ -257,11 +254,11 @@ sudo firewall-cmd --reload
 | --- | --- | --- | --- |
 | `crowdsec` daemon exits | The entrypoint's `wait -n` supervisor observes the engine process exit | The manager is stopped and the container exits non-zero so systemd's `Restart=always` recovers the whole service | Inspect `sudo journalctl -u crowdsec-manager -f`; fix the CrowdSec error and let systemd restart the Quadlet |
 | LAPI unreachable (port 8080 down) | `CrowdSecApiService.IsReachableAsync()` returns false; footer shows "offline" | Threat map falls back to `cscli` polling (slower); dashboard stats degrade | `podman exec crowdsec-manager cscli lapi status`; restart LAPI |
-| MaxMind DB missing | `GeoIpService.IsDatabaseAvailable == false`; dashboard card "GeoIP DB: missing" | Threat map plots IPs at hash-derived fallback locations | Drop `GeoLite2-City.mmdb` at `/var/lib/GeoIP/` and restart container |
+| MaxMind DB missing | `GeoIpService.IsDatabaseAvailable == false`; dashboard card "GeoIP DB: missing" | Threat map plots IPs at deterministic fallback coordinates marked unknown | Replace `deploy/GeoLite2-City.mmdb` and rebuild the image, or configure `GeoIp__DatabasePath` to a readable mounted file; restart the application |
 | cscli binary missing | `CrowdSecCliService.RunAsync` returns exit code -1 with "Failed to start cscli" | All hub/decisions/bouncers/machines pages fail with descriptive error | Rebuild the image; ensure the Dockerfile stage 2 is based on `crowdsecurity/crowdsec:latest` |
 | App DB locked / corrupt | EF Core throws `SqliteException` | Login fails; new threat events not persisted | Stop container, `cp /var/lib/crowdsec-manager/app.db /var/lib/crowdsec-manager/app.db.broken`, restart (DB is recreated on first boot via `EnsureCreated`) |
 | Bouncer API key rejected by LAPI | Health may still succeed, but decision reads fail; alert history is read separately through `cscli` | Decision statistics may fall back to `cscli` | `podman exec crowdsec-manager cscli bouncers list`; register/copy a key and set `CROWDSEC_BOUNCER_APIKEY`, then restart the container |
-| Browser disconnected from Blazor circuit | `DisconnectedCircuitMaxRetained` (30) reached; user sees "Reconnecting…" overlay | Threat map canvas freezes (no new events until reconnect) | User reloads; server keeps the SignalR hub open |
+| Browser disconnected from Blazor circuit | `DisconnectedCircuitMaxRetained` (30) reached; user sees "Reconnecting…" overlay | Threat map stops receiving new events until reconnect | User reloads; server keeps the SignalR hub open |
 | Container OOM | `podman stats` shows memory pegged at limit; systemd restarts the unit | Cold restart of all services | Increase `LimitMemory` in the Quadlet; investigate with `dotnet-counters` |
 | Disk full on `/var/lib/crowdsec-manager/` | SQLite write errors; threat history persist fails silently (logged at Debug level) | Threat map degrades; login may fail | Clean old backups in `/var/lib/crowdsec-manager/backups/`; prune old `ThreatHistoryEntry` rows |
 | Host CrowdSec and in-container CrowdSec both run on 8080 | LAPI bind fails; only one process owns the port | Confusing state where some queries hit the wrong LAPI | Pick one model (see §7). Disable in-container CrowdSec with `NO_BOOTSTRAP_CROWDSEC=1` |
@@ -345,8 +342,7 @@ sudo systemctl stop crowdsec-manager
 sudo tar czf crowdsec-full-$(date +%Y%m%d).tgz \
     /etc/crowdsec \
     /var/lib/crowdsec \
-    /var/lib/crowdsec-manager \
-    /var/lib/GeoIP
+    /var/lib/crowdsec-manager
 sudo systemctl start crowdsec-manager
 ```
 

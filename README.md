@@ -17,7 +17,7 @@ a single `systemctl start`.
 | Area | What you get |
 | --- | --- |
 | **Dashboard** | Live counts of decisions / alerts / 24h alerts / GeoIP status, quick actions for `cscli hub update` / `hub upgrade` / config backup, recent blocked IPs table. |
-| **Real-time threat map** | Canvas-based dark SOC world map. Each new CrowdSec alert is geolocated with MaxMind GeoLite2 and drawn as an animated arc from the attacker IP to your protected host. Severity-colored, with ripples on impact, source pulsing dots, top source countries bar list, and a live recent-attacks feed. |
+| **Real-time threat map** | Interactive Leaflet/OpenStreetMap map. Each new CrowdSec alert is geolocated with MaxMind GeoLite2 and drawn as a severity-colored arc from the attacker IP to your protected host, with source markers, top source countries, and a live recent-attacks feed. |
 | **Decisions** | Add a manual IP ban (`ban` / `captcha` / `throttle`), with custom duration, reason and an optional **bypass-allowlist** flag (forces the ban even if the IP is in a CrowdSec allowlist). List, delete, or wipe all active decisions. |
 | **Alerts** | Browse the last N alerts with scenario, source, event count, decision count and message. Delete individual alerts. |
 | **Hub & Collections** | Run `cscli hub update` / `hub upgrade`, install/remove individual collections, parsers, scenarios, postoverflows, AppSec rules and contexts. Filter by name/type. See local vs latest version and taint state. |
@@ -48,8 +48,7 @@ a single `systemctl start`.
 │             │ /var/log (read-only)              │ Blazor circuit     │
 │             │ /etc/crowdsec (rw)                ▼                    │
 │             │ /var/lib/crowdsec (rw)       Browser (dark SOC UI)     │
-│             │ /var/lib/GeoIP (ro)               ▲                    │
-│             │                                    │ MaxMind GeoLite2   │
+│             │                                    │ GeoLite2 database │
 └─────────────┼────────────────────────────────────┼────────────────────┘
               │                                    │
               ▼                                    ▼
@@ -127,7 +126,7 @@ crowdsec-manager/
 │       └── wwwroot/
 │           ├── css/soc.css                  # dark SOC theme
 │           ├── css/threatmap.css
-│           ├── js/threatmap.js              # canvas + arcs + world topojson
+│           ├── js/threatmap.js              # Leaflet + live threat arcs
 │           └── favicon.svg
 ├── readme.md                        # ← you are here
 └── workload.md                      # architecture deep-dive
@@ -141,7 +140,7 @@ crowdsec-manager/
   on RHEL 9 / Fedora 38+ / Debian 12+ / Ubuntu 23.04+; install
   `podman-plugins` on older systems)
 - **systemd** (Quadlet files are translated to systemd units on `daemon-reload`)
-- Optional: a MaxMind account to download `GeoLite2-City.mmdb` (free)
+- Optional: a MaxMind account to download newer GeoLite2 database releases
 - Optional: existing CrowdSec install on the host (otherwise the container
   will bootstrap a fresh one inside its own config volume)
 
@@ -178,7 +177,7 @@ The script:
 
 - Copies `deploy/crowdsec-manager.container` to `/etc/containers/systemd/`
 - Creates the host bind-mount directories (`/etc/crowdsec`,
-  `/var/lib/crowdsec`, `/var/lib/crowdsec-manager`, `/var/lib/GeoIP`)
+  `/var/lib/crowdsec`, `/var/lib/crowdsec-manager`)
 - Reloads systemd and enables `crowdsec-manager.service`
 
 You can also do it manually:
@@ -193,18 +192,18 @@ sudo systemctl enable --now crowdsec-manager
 > `admin` user. After that, change the password through the UI or with
 > `dotnet user secrets` / direct DB edit.
 
-### 4. (Optional) Install GeoLite2
+### 4. GeoIP database
 
-For accurate threat-map geolocation, download
-[GeoLite2-City](https://www.maxmind.com/en/geolite2/signup) (free, requires
-signing up). Drop the `.mmdb` file at:
+The repository includes `deploy/GeoLite2-City.mmdb`, and the Dockerfile copies
+it into the image at `/var/lib/GeoIP/GeoLite2-City.mmdb`. It maps public source
+IPs from CrowdSec alerts to approximate countries, cities, and coordinates so
+the threat map can place attacks on the map. It does not contain CrowdSec
+decisions and does not control blocking. See [the GeoIP database guide](docs/GEOIP_DATABASE.md)
+for configuration, limitations, and update instructions.
 
-```
-/var/lib/GeoIP/GeoLite2-City.mmdb
-```
-
-Without it the threat map still works but plots IPs at hash-derived fallback
-locations.
+Without a readable database, the application continues using deterministic
+fallback coordinates and labels the country as unknown. Those coordinates are
+not a real geolocation. The dashboard indicates whether the database loaded.
 
 ### 5. Open the UI
 
@@ -230,7 +229,6 @@ alternative to a `docker run` line. Highlights:
 | `Volume=/etc/crowdsec:/etc/crowdsec:Z` | rw | YAML config editor + hub installs |
 | `Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z` | rw | CrowdSec SQLite DB |
 | `Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z` | rw | app DB + backups |
-| `Volume=/var/lib/GeoIP:/var/lib/GeoIP:ro,Z` | ro | GeoLite2 mmdb (read-only) |
 | `Volume=/var/log:/var/log:ro,Z` | ro | CrowdSec log sources |
 | `Environment=ADMIN_USER=admin` | | seed user |
 | `Environment=ADMIN_PASSWORD=...` | | first-boot seed password |
@@ -326,9 +324,8 @@ sudo podman exec -it crowdsec-manager bash
 4. The right panel shows live stats, top source countries (with bars), and
    the 20 most recent attacks.
 
-> If GeoLite2 is not mounted, IP locations are hash-derived and clearly
-> marked as unknown. Install GeoLite2 (see step 4 above) for real
-> geolocation.
+> If GeoLite2 is missing or cannot be read, IP locations use the fallback
+> coordinates and are marked as unknown. See the [GeoIP database guide](docs/GEOIP_DATABASE.md).
 
 ### Bouncers
 
@@ -477,7 +474,7 @@ Linux; protect the containing host volume accordingly.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | UI loads but `CrowdSec LAPI: offline` in footer | CrowdSec daemon not running in the container or on the host | Check `sudo journalctl -u crowdsec-manager -f`; in bundled-engine mode the entrypoint stops the UI when CrowdSec exits and Quadlet restarts the container. In side-by-side mode, check/restart the host CrowdSec service. |
-| Threat map stays empty | No alerts in CrowdSec, or GeoLite2 not installed (still works with fallback) | `cscli alerts list` to confirm; optionally drop GeoLite2 at `/var/lib/GeoIP/` |
+| Threat map stays empty | No alerts in CrowdSec, or source addresses cannot be geolocated | `cscli alerts list` to confirm; check the dashboard GeoIP status and see the [GeoIP database guide](docs/GEOIP_DATABASE.md) |
 | `401 Unauthorized` from LAPI in logs | Bouncer API key missing, stale or from another LAPI | Check that the CrowdSec and manager data volumes are persistent and belong to the same deployment. If the CrowdSec database was reset, remove `/var/lib/crowdsec-manager/crowdsec-manager-bouncer.key` from the manager data volume and restart so the entrypoint registers a new key. |
 | `cscli: command not found` | Wrong base image or runtime stage stripped cscli | Rebuild from the official `crowdsecurity/crowdsec` base image (see Dockerfile stage 2) |
 | YAML save fails with "not in the editable whitelist" | File is outside the approved CrowdSec config paths | Keep edits under `/etc/crowdsec` or extend `ConfigFileService`'s approved paths |
