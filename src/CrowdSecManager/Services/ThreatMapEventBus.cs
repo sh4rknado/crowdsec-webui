@@ -2,20 +2,6 @@ using CrowdSecManager.Models;
 
 namespace CrowdSecManager.Services;
 
-public sealed record ThreatMapEventSnapshot(
-    IReadOnlyList<ThreatEvent> RecentEvents,
-    ThreatMapStats Stats);
-
-public interface IThreatMapEventBus
-{
-    event Action<ThreatEvent, ThreatMapStats>? ThreatSpotted;
-    event Action<ThreatMapStats>? StatsUpdated;
-
-    void PublishThreat(ThreatEvent threat, ThreatMapStats stats);
-    void PublishStats(ThreatMapStats stats);
-    ThreatMapEventSnapshot GetSnapshot();
-}
-
 /// <summary>In-process fan-out for authenticated Blazor circuits. The Blazor circuit
 /// carries events to the browser, so threat data does not need a public SignalR hub.</summary>
 public sealed class ThreatMapEventBus : IThreatMapEventBus

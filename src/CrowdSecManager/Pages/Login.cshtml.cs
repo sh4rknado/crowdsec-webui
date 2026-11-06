@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using CrowdSecManager.Areas.Identity.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -38,15 +37,5 @@ public sealed class LoginModel(SignInManager<ApplicationUser> signIn) : PageMode
                 ? "Two-factor authentication is required (not configured)."
                 : "Invalid username or password.";
         return Page();
-    }
-
-    public sealed class LoginInput
-    {
-        [Required]
-        public string Username { get; set; } = "";
-
-        [Required]
-        [DataType(DataType.Password)]
-        public string Password { get; set; } = "";
     }
 }
