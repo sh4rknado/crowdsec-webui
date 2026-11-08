@@ -31,7 +31,12 @@ public sealed class ThreatFeedService : BackgroundService
         IOptions<GeoIpOptions> geoOpt,
         ILogger<ThreatFeedService> log)
     {
-        _sp = sp; _events = events; _geo = geo; _opt = opt.Value; _geoOpt = geoOpt.Value; _log = log;
+        _sp = sp ?? throw new ArgumentNullException(nameof(sp));
+        _events = events ?? throw new ArgumentNullException(nameof(events));
+        _geo = geo ?? throw new ArgumentNullException(nameof(geo));
+        _opt = (opt ?? throw new ArgumentNullException(nameof(opt))).Value;
+        _geoOpt = (geoOpt ?? throw new ArgumentNullException(nameof(geoOpt))).Value;
+        _log = log ?? throw new ArgumentNullException(nameof(log));
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)

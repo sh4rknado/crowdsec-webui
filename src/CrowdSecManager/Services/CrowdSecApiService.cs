@@ -16,20 +16,20 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
     public CrowdSecApiService(HttpClient http, IOptions<CrowdSecOptions> opt,
         ILogger<CrowdSecApiService> log, ICrowdSecCliService cli)
     {
-        _opt = opt.Value;
-        _log = log;
-        _cli = cli;
+        _http = http ?? throw new ArgumentNullException(nameof(http));
+        _opt = (opt ?? throw new ArgumentNullException(nameof(opt))).Value;
+        _log = log ?? throw new ArgumentNullException(nameof(log));
+        _cli = cli ?? throw new ArgumentNullException(nameof(cli));
         var baseAddr = _opt.LocalApiUrl.TrimEnd('/');
         if (!baseAddr.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             baseAddr = "http://" + baseAddr;
-        http.BaseAddress = new Uri(baseAddr + "/");
-        http.Timeout = TimeSpan.FromSeconds(15);
+        _http.BaseAddress = new Uri(baseAddr + "/");
+        _http.Timeout = TimeSpan.FromSeconds(15);
         if (!string.IsNullOrWhiteSpace(_opt.BouncerApiKey))
         {
-            http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _opt.BouncerApiKey);
+            _http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _opt.BouncerApiKey);
         }
-        http.DefaultRequestHeaders.UserAgent.ParseAdd($"crowdsec-manager/1.0");
-        _http = http;
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd($"crowdsec-manager/1.0");
     }
 
     public async Task<bool> IsReachableAsync(CancellationToken ct = default)

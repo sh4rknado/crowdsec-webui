@@ -6,8 +6,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class SimulationViewModel(ICrowdSecCliService cli, ILogger<SimulationViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<SimulationViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<SimulationViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public CsSimulationStatus? Status { get; private set => SetProperty(ref field, value); }
     public IReadOnlyList<CsSimulation> Simulations { get; private set => SetProperty(ref field, value); } = [];

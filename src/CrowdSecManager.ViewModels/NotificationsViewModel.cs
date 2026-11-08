@@ -6,9 +6,9 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class NotificationsViewModel(ICrowdSecCliService cli, IConfigFileService config, ILogger<NotificationsViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly IConfigFileService _config = config;
-    private readonly ILogger<NotificationsViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly IConfigFileService _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly ILogger<NotificationsViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
     private string _lastDefaultName = "slack_default";
 
     public IReadOnlyList<CsNotification> Notifications { get; private set => SetProperty(ref field, value); } = Array.Empty<CsNotification>();

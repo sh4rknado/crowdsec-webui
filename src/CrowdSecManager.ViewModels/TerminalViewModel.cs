@@ -37,8 +37,8 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable, IAfterRender
 
     public TerminalViewModel(ITerminalRepository repo, ILogger<TerminalViewModel> log, IJSRuntime? js = null)
     {
-        _repo = repo;
-        _log = log;
+        _repo = repo ?? throw new ArgumentNullException(nameof(repo));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
         _js = js;
         // Initial banner so the page is never empty on first paint.
         _lines.Add(TerminalLine.Muted("CrowdSec CLI terminal. Type 'help' for common commands, 'clear' to wipe the screen."));

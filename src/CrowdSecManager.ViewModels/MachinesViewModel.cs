@@ -6,8 +6,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class MachinesViewModel(ICrowdSecCliService cli, ILogger<MachinesViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<MachinesViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<MachinesViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string NewMachine { get; private set => SetProperty(ref field, value); } = "";
     public bool AutoValidate { get; private set => SetProperty(ref field, value); }

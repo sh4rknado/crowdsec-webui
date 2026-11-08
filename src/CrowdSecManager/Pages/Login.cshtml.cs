@@ -9,6 +9,8 @@ namespace CrowdSecManager.Pages;
 [AllowAnonymous]
 public sealed class LoginModel(SignInManager<ApplicationUser> signIn) : PageModel
 {
+    private readonly SignInManager<ApplicationUser> _signIn = signIn ?? throw new ArgumentNullException(nameof(signIn));
+
     [BindProperty]
     public LoginInput Input { get; set; } = new();
 
@@ -27,7 +29,7 @@ public sealed class LoginModel(SignInManager<ApplicationUser> signIn) : PageMode
         if (!Url.IsLocalUrl(ReturnUrl)) ReturnUrl = "/";
         if (!ModelState.IsValid) return Page();
 
-        var result = await signIn.PasswordSignInAsync(
+        var result = await _signIn.PasswordSignInAsync(
             Input.Username, Input.Password, isPersistent: true, lockoutOnFailure: true);
         if (result.Succeeded) return LocalRedirect(ReturnUrl!);
 

@@ -7,8 +7,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class AlertsViewModel(ICrowdSecCliService cli, ILogger<AlertsViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<AlertsViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<AlertsViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public int Limit { get; set => SetProperty(ref field, value); } = 100;
     public string Ip { get; set => SetProperty(ref field, value); } = "";

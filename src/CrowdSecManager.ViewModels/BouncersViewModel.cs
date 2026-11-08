@@ -7,8 +7,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class BouncersViewModel(ICrowdSecCliService cli, ILogger<BouncersViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<BouncersViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<BouncersViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string NewName { get; set => SetProperty(ref field, value); } = "";
     public string NewKey { get; set => SetProperty(ref field, value); } = "";

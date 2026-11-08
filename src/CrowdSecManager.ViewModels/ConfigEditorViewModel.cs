@@ -5,8 +5,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class ConfigEditorViewModel(IConfigFileService config, ICrowdSecCliService cli) : ViewModelBase
 {
-    private readonly IConfigFileService _config = config;
-    private readonly ICrowdSecCliService _cli = cli;
+    private readonly IConfigFileService _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
 
     public string Draft { get; set => SetProperty(ref field, value); } = "";
     public bool IsBusy { get; private set => SetProperty(ref field, value); }

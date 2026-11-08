@@ -6,11 +6,11 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class DashboardViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, IConfigFileService config, IGeoIpService geo, ILogger<DashboardViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecApiService _api = api;
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly IConfigFileService _config = config;
-    private readonly IGeoIpService _geo = geo;
-    private readonly ILogger<DashboardViewModel> _log = log;
+    private readonly ICrowdSecApiService _api = api ?? throw new ArgumentNullException(nameof(api));
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly IConfigFileService _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly IGeoIpService _geo = geo ?? throw new ArgumentNullException(nameof(geo));
+    private readonly ILogger<DashboardViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public bool GeoOk { get; private set => SetProperty(ref field, value); } = true;
     public bool IsHubBusy { get; private set => SetProperty(ref field, value); }

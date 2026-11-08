@@ -6,9 +6,9 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, ILogger<DecisionsViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecApiService _api = api;
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<DecisionsViewModel> _log = log;
+    private readonly ICrowdSecApiService _api = api ?? throw new ArgumentNullException(nameof(api));
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<DecisionsViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string Ip { get; set => SetProperty(ref field, value); } = "";
     public string Duration { get; set => SetProperty(ref field, value); } = "4h";

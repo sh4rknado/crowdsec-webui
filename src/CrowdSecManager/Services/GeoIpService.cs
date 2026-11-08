@@ -19,8 +19,9 @@ public sealed class GeoIpService : IGeoIpService, IDisposable
 
     public GeoIpService(IOptions<GeoIpOptions> opt, ILogger<GeoIpService> log)
     {
-        _opt = opt.Value;
-        _log = log;
+        _opt = opt?.Value ?? throw new ArgumentNullException(nameof(opt));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
+
         _home = new GeoPoint
         {
             Latitude = _opt.HomeLatitude,

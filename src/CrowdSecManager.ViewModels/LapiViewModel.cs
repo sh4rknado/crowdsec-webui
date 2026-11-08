@@ -6,8 +6,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class LapiViewModel(ICrowdSecCliService cli, ILogger<LapiViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<LapiViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<LapiViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string StatusOutput { get; private set => SetProperty(ref field, value); } = "";
     public bool IsBusy { get; private set => SetProperty(ref field, value); }

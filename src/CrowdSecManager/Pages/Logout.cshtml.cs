@@ -8,11 +8,13 @@ namespace CrowdSecManager.Pages;
 [Authorize]
 public sealed class LogoutModel(SignInManager<Areas.Identity.Data.ApplicationUser> signIn) : PageModel
 {
+    private readonly SignInManager<Areas.Identity.Data.ApplicationUser> _signIn = signIn ?? throw new ArgumentNullException(nameof(signIn));
+
     public void OnGet() { }
 
     public async Task<IActionResult> OnPostAsync()
     {
-        await signIn.SignOutAsync();
+        await _signIn.SignOutAsync();
         return Redirect("/login");
     }
 }

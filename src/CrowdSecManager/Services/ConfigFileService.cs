@@ -37,8 +37,8 @@ public sealed class ConfigFileService : IConfigFileService
 
     public ConfigFileService(IOptions<CrowdSecOptions> opt, ILogger<ConfigFileService> log)
     {
-        _opt = opt.Value;
-        _log = log;
+        _opt = (opt ?? throw new ArgumentNullException(nameof(opt))).Value;
+        _log = log ?? throw new ArgumentNullException(nameof(log));
     }
 
     public IReadOnlyList<ConfigFileInfo> ListConfigFiles()

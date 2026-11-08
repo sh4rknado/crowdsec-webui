@@ -10,19 +10,11 @@ using Microsoft.Extensions.Options;
 
 namespace CrowdSecManager.Services;
 
-public sealed class CrowdSecCliService : ICrowdSecCliService
+public sealed class CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<CrowdSecCliService> log, ICrowdSecProcessRunner processRunner) : ICrowdSecCliService
 {
-    private readonly CrowdSecOptions _opt;
-    private readonly ILogger<CrowdSecCliService> _log;
-    private readonly ICrowdSecProcessRunner _processRunner;
-
-    public CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<CrowdSecCliService> log,
-        ICrowdSecProcessRunner processRunner)
-    {
-        _opt = opt.Value;
-        _log = log;
-        _processRunner = processRunner;
-    }
+    private readonly CrowdSecOptions _opt = opt?.Value ?? throw new ArgumentNullException(nameof(opt));
+    private readonly ILogger<CrowdSecCliService> _log = log ?? throw new ArgumentNullException(nameof(log));
+    private readonly ICrowdSecProcessRunner _processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
 
     public Task<CliResult> RunAsync(params string[] args) => RunAsync((IEnumerable<string>)args);
 

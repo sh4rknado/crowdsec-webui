@@ -6,8 +6,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class ExplainViewModel(ICrowdSecCliService cli, ILogger<ExplainViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<ExplainViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<ExplainViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string Type { get; set => SetProperty(ref field, value); } = "syslog";
     public string Labels { get; set => SetProperty(ref field, value); } = "";

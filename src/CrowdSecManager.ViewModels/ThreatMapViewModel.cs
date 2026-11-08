@@ -7,10 +7,10 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class ThreatMapViewModel(IJSRuntime js, IGeoIpService geo, IThreatMapEventBus events, ILogger<ThreatMapViewModel> log) : ViewModelBase, IAsyncDisposable, IAfterRenderViewModel, IUiDispatcherAware
 {
-    private readonly IJSRuntime _js = js;
-    private readonly IGeoIpService _geo = geo;
-    private readonly IThreatMapEventBus _events = events;
-    private readonly ILogger<ThreatMapViewModel> _log = log;
+    private readonly IJSRuntime _js = js ?? throw new ArgumentNullException(nameof(js));
+    private readonly IGeoIpService _geo = geo ?? throw new ArgumentNullException(nameof(geo));
+    private readonly IThreatMapEventBus _events = events ?? throw new ArgumentNullException(nameof(events));
+    private readonly ILogger<ThreatMapViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
     private readonly ThreatMapEventReplayBuffer _replayBuffer = new();
     private readonly HashSet<long> _recentAlertIds = [];
     private bool _started;

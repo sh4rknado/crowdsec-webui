@@ -6,8 +6,8 @@ namespace CrowdSecManager.ViewModels;
 
 public sealed class HubManagementViewModel(ICrowdSecCliService cli, ILogger<HubManagementViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli = cli;
-    private readonly ILogger<HubManagementViewModel> _log = log;
+    private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
+    private readonly ILogger<HubManagementViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
     public string Filter { get; set => SetProperty(ref field, value); } = "";
     public string SearchQuery { get; set => SetProperty(ref field, value); } = "";

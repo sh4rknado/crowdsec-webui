@@ -7,7 +7,7 @@ namespace CrowdSecManager.Data;
 
 public sealed class AppDbContext : IdentityDbContext<ApplicationUser>
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options ?? throw new ArgumentNullException(nameof(options))) { }
 
     public DbSet<ThreatHistoryEntry> ThreatHistory => Set<ThreatHistoryEntry>();
 
