@@ -1,4 +1,4 @@
-using CrowdSecManager.Areas.Identity.Data;
+﻿using CrowdSecManager.Areas.Identity.Data;
 using CrowdSecManager.Data;
 using CrowdSecManager.Infrastructure;
 using CrowdSecManager.Services;
@@ -46,7 +46,19 @@ builder.Services.AddRazorComponents()
     {
         o.DetailedErrors = builder.Environment.IsDevelopment();
     });
-builder.Services.AddScoped<CrowdSecManager.ViewModels.TerminalViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.TerminalViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.DashboardViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.AlertsViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.BouncersViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.DecisionsViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.MachinesViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.SimulationViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.HubManagementViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.ExplainViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.LapiViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.ConfigEditorViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.ThreatMapViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.NotificationsViewModel>();
 
 // ---- SignalR (used by the live threat map) ----
 builder.Services.AddSignalR(o =>

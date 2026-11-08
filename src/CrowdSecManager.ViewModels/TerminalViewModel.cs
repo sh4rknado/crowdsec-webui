@@ -1,7 +1,10 @@
 using System.ComponentModel;
 using CrowdSecManager.Core.CommandLine;
 using CrowdSecManager.Core.Repositories;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 
 namespace CrowdSecManager.ViewModels;
 
@@ -19,10 +22,11 @@ namespace CrowdSecManager.ViewModels;
 /// <see cref="CommandLineTokenizer"/> (in Infrastructure), which is also
 /// used by the CLI service so the behavior stays consistent.
 /// </summary>
-public sealed class TerminalViewModel : ViewModelBase, IDisposable
+public sealed class TerminalViewModel : ViewModelBase, IDisposable, IAfterRenderViewModel
 {
     private readonly ITerminalRepository _repo;
     private readonly ILogger<TerminalViewModel> _log;
+    private readonly IJSRuntime? _js;
 
     // Backing state
     private readonly List<TerminalLine> _lines = [];
@@ -31,10 +35,11 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _cts;
     private int _pendingCount;          // number of in-flight Execute calls (race guard)
 
-    public TerminalViewModel(ITerminalRepository repo, ILogger<TerminalViewModel> log)
+    public TerminalViewModel(ITerminalRepository repo, ILogger<TerminalViewModel> log, IJSRuntime? js = null)
     {
         _repo = repo;
         _log = log;
+        _js = js;
         // Initial banner so the page is never empty on first paint.
         _lines.Add(TerminalLine.Muted("CrowdSec CLI terminal. Type 'help' for common commands, 'clear' to wipe the screen."));
         _lines.Add(TerminalLine.Muted("Everything runs as cscli <your input>. No shell, no pipes, no redirection."));
@@ -58,6 +63,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     }
 
     public string Input { get; set => SetProperty(ref field, value ?? ""); } = "";
+    public ElementReference OutputRef { get; set; }
     public bool IsBusy { get; private set => SetProperty(ref field, value); }
     public bool HasHistory => _history.Count > 0;
 
@@ -100,6 +106,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
             Clear();
             return;
         }
+
         if (firstToken == "help")
         {
             ShowHelp();
@@ -172,6 +179,29 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
             if (_pendingCount == 0)
                 IsBusy = false;
         }
+    }
+
+    public async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "Enter":
+                await ExecuteAsync(Input);
+                break;
+            case "ArrowUp":
+                BrowseHistory(-1);
+                break;
+            case "ArrowDown":
+                BrowseHistory(1);
+                break;
+        }
+    }
+
+    public async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_js is null) return;
+        try { await _js.InvokeVoidAsync("csTerminal.scrollToEnd", OutputRef); }
+        catch { }
     }
 
     /// <summary>

@@ -1,20 +1,18 @@
 @page "/notifications"
 @attribute [Authorize]
-@inject ICrowdSecCliService Cli
-@inject IConfigFileService Config
-@inject ILogger<Notifications> Log
+@inherits ViewModelComponentBase<NotificationsViewModel>
 
 <PageTitle>Notifications &middot; CrowdSec Manager</PageTitle>
 
 <section class="card">
     <header>
-        <h2>Notification plugins (@_list.Count)</h2>
+        <h2>Notification plugins (@Vm.Notifications.Count)</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+            <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.RefreshAsync">Refresh</button>
         </div>
     </header>
 
-    @if (_list.Count == 0)
+    @if (Vm.Notifications.Count == 0)
     {
         <p class="muted">No notification plugins configured yet. Create one below to start forwarding CrowdSec alerts.</p>
     }
@@ -23,22 +21,22 @@
         <table class="data">
             <thead><tr><th>Name</th><th>Type</th><th>Format</th><th>State</th><th>Description</th><th></th></tr></thead>
             <tbody>
-                @foreach (var n in _list)
+                @foreach (var n in Vm.Notifications)
                 {
                     <tr>
                         <td class="mono">@n.Name</td><td>@n.Type</td><td>@n.Format</td>
                         <td>@if (n.Enabled) { <span class="badge ok">enabled</span> } else { <span class="badge">disabled</span> }</td>
-                        <td>@Truncate(n.Description, 80)</td>
-                        <td><button class="btn mini" disabled="@_busy" @onclick="async () => await Inspect(n.Name!)">Inspect</button></td>
+                        <td>@NotificationsViewModel.Truncate(n.Description, 80)</td>
+                        <td><button class="btn mini" disabled="@Vm.IsBusy" @onclick="async () => await Vm.InspectAsync(n.Name!)">Inspect</button></td>
                     </tr>
                 }
             </tbody>
         </table>
     }
 
-    @if (_inspectOutput is not null)
+    @if (Vm.InspectOutput is not null)
     {
-        <details class="raw" open><summary>Inspect output for @(_inspectName ?? "")</summary><pre class="mono">@_inspectOutput</pre></details>
+        <details class="raw" open><summary>Inspect output for @(Vm.InspectName ?? "")</summary><pre class="mono">@Vm.InspectOutput</pre></details>
     }
 </section>
 
@@ -47,7 +45,7 @@
     <p class="muted small">Save plugin settings and enable delivery from a dedicated local CrowdSec profile. Existing decision profiles continue to run.</p>
     <div class="form-row">
         <label for="pluginType">Plugin</label>
-        <select id="pluginType" @bind="_type" @bind:after="UpdateDefaultName">
+        <select id="pluginType" class="notification-select" @bind="Vm.Type" @bind:after="Vm.UpdateDefaultNameAsync">
             <option value="slack">Slack</option>
             <option value="http">HTTP webhook</option>
             <option value="email">Email</option>
@@ -55,35 +53,35 @@
     </div>
     <div class="form-row">
         <label for="pluginName">Plugin name</label>
-        <input id="pluginName" type="text" @bind="_name" placeholder="slack_default" />
+        <input id="pluginName" type="text" @bind="Vm.Name" placeholder="slack_default" />
     </div>
 
-    @if (_type == "slack")
+    @if (Vm.Type == "slack")
     {
-        <div class="form-row"><label for="slackWebhook">Slack incoming webhook</label><input id="slackWebhook" type="password" @bind="_webhook" autocomplete="new-password" /></div>
+        <div class="form-row"><label for="slackWebhook">Slack incoming webhook</label><input id="slackWebhook" type="password" @bind="Vm.Webhook" autocomplete="new-password" /></div>
     }
-    else if (_type == "http")
+    else if (Vm.Type == "http")
     {
-        <div class="form-row"><label for="httpUrl">Webhook URL</label><input id="httpUrl" type="text" @bind="_url" placeholder="https://example.net/crowdsec" /></div>
+        <div class="form-row"><label for="httpUrl">Webhook URL</label><input id="httpUrl" type="text" @bind="Vm.Url" placeholder="https://example.net/crowdsec" /></div>
     }
     else
     {
-        <div class="form-row"><label for="smtpHost">SMTP host</label><input id="smtpHost" type="text" @bind="_smtpHost" /></div>
-        <div class="form-row"><label for="smtpPort">SMTP port</label><input id="smtpPort" type="number" @bind="_smtpPort" /></div>
-        <div class="form-row"><label for="senderEmail">Sender email</label><input id="senderEmail" type="text" @bind="_senderEmail" /></div>
-        <div class="form-row"><label for="recipients">Recipient emails</label><input id="recipients" type="text" @bind="_recipients" placeholder="security@example.com, ops@example.com" /></div>
-        <div class="form-row"><label for="smtpUser">SMTP username (optional)</label><input id="smtpUser" type="text" @bind="_smtpUser" /></div>
-        <div class="form-row"><label for="smtpPassword">SMTP password (optional)</label><input id="smtpPassword" type="password" @bind="_smtpPassword" autocomplete="new-password" /></div>
-        <div class="form-row"><label for="encryption">Encryption</label><select id="encryption" @bind="_encryption"><option value="starttls">STARTTLS</option><option value="ssltls">SSL/TLS</option><option value="none">None</option></select></div>
+        <div class="form-row"><label for="smtpHost">SMTP host</label><input id="smtpHost" type="text" @bind="Vm.SmtpHost" /></div>
+        <div class="form-row"><label for="smtpPort">SMTP port</label><input id="smtpPort" type="number" @bind="Vm.SmtpPort" /></div>
+        <div class="form-row"><label for="senderEmail">Sender email</label><input id="senderEmail" type="text" @bind="Vm.SenderEmail" /></div>
+        <div class="form-row"><label for="recipients">Recipient emails</label><input id="recipients" type="text" @bind="Vm.Recipients" placeholder="security@example.com, ops@example.com" /></div>
+        <div class="form-row"><label for="smtpUser">SMTP username (optional)</label><input id="smtpUser" type="text" @bind="Vm.SmtpUser" /></div>
+        <div class="form-row"><label for="smtpPassword">SMTP password (optional)</label><input id="smtpPassword" type="password" @bind="Vm.SmtpPassword" autocomplete="new-password" /></div>
+        <div class="form-row"><label for="encryption">Encryption</label><select id="encryption" class="notification-select" @bind="Vm.Encryption"><option value="starttls">STARTTLS</option><option value="ssltls">SSL/TLS</option><option value="none">None</option></select></div>
     }
 
     <div class="form-row">
         <label for="scope">Send alerts for</label>
-        <select id="scope" @bind="_scope"><option value="all">All remediation alerts</option><option value="Ip">IP decisions</option><option value="Range">Range decisions</option></select>
+        <select id="scope" class="notification-select" @bind="Vm.Scope"><option value="all">All remediation alerts</option><option value="Ip">IP decisions</option><option value="Range">Range decisions</option></select>
     </div>
-    <div class="form-row"><label class="inline"><input type="checkbox" @bind="_enabled" /> Enable delivery</label></div>
-    <div class="actions"><button class="btn primary" disabled="@_busy" @onclick="SaveNotification">@(_busy ? "Saving..." : "Save notification")</button></div>
-    @if (_msg is not null) { <div class="@(_err ? "err" : "ok")">@_msg</div> }
+    <div class="form-row"><label class="inline"><input type="checkbox" @bind="Vm.Enabled" /> Enable delivery</label></div>
+    <div class="actions"><button class="btn primary" disabled="@Vm.IsBusy" @onclick="Vm.SaveNotificationAsync">@(Vm.IsBusy ? "Saving..." : "Save notification")</button></div>
+    @if (Vm.Message is not null) { <div class="@(Vm.HasError ? "err" : "ok")">@Vm.Message</div> }
 </section>
 
 <section class="card">
@@ -99,103 +97,3 @@
     </div>
 </section>
 
-@code {
-    private List<CsNotification> _list = new();
-    private bool _busy;
-    private string? _msg; private bool _err;
-    private string? _inspectOutput;
-    private string? _inspectName;
-    private string _type = "slack";
-    private string _name = "slack_default";
-    private string _lastDefaultName = "slack_default";
-    private string _scope = "all";
-    private bool _enabled = true;
-    private string _webhook = "";
-    private string _url = "";
-    private string _smtpHost = "";
-    private string _smtpPort = "587";
-    private string _senderEmail = "";
-    private string _recipients = "";
-    private string _smtpUser = "";
-    private string _smtpPassword = "";
-    private string _encryption = "starttls";
-
-    protected override async Task OnInitializedAsync() => await Refresh();
-
-    private async Task Refresh()
-    {
-        try { _list = (await Cli.ListNotificationsAsync()).ToList(); }
-        catch (Exception ex) { Log.LogDebug("notifications: {Msg}", ex.Message); }
-    }
-
-    private Task UpdateDefaultName()
-    {
-        if (_name == _lastDefaultName) _name = DefaultPluginName(_type);
-        _lastDefaultName = DefaultPluginName(_type);
-        return Task.CompletedTask;
-    }
-
-    private static string DefaultPluginName(string type) => type switch
-    {
-        "http" => "http_default",
-        "email" => "email_default",
-        _ => "slack_default"
-    };
-
-    private async Task SaveNotification()
-    {
-        _busy = true; _msg = null; _err = false;
-        try
-        {
-            var settings = new Dictionary<string, string?>
-            {
-                ["webhook"] = _webhook, ["url"] = _url,
-                ["smtp_host"] = _smtpHost, ["smtp_port"] = _smtpPort,
-                ["sender_email"] = _senderEmail, ["receiver_emails"] = _recipients,
-                ["smtp_username"] = _smtpUser, ["smtp_password"] = _smtpPassword,
-                ["encryption_type"] = _encryption
-            };
-            var plugin = NotificationConfigBuilder.BuildPlugin(_type, _name, settings);
-            if (!plugin.Valid) { _err = true; _msg = plugin.Error; return; }
-
-            var profileFile = Config.Load("profiles.yaml.local");
-            if (profileFile is null) { _err = true; _msg = "Could not read profiles.yaml.local."; return; }
-            var profile = NotificationConfigBuilder.SetProfile(profileFile.Content, _name, _scope, _enabled);
-            if (!profile.Valid) { _err = true; _msg = profile.Error; return; }
-
-            var pluginSave = Config.Save(plugin.FileName!, plugin.Yaml!);
-            if (!pluginSave.Valid) { _err = true; _msg = pluginSave.Error; return; }
-            var profileSave = Config.Save("profiles.yaml.local", profile.Content!);
-            if (!profileSave.Valid) { _err = true; _msg = profileSave.Error; return; }
-
-            var target = _scope == "all" ? "all remediation alerts" : $"{_scope} decisions";
-            _msg = _enabled
-                ? $"Saved {_name} and enabled it for {target}. Reload CrowdSec to apply it."
-                : $"Saved {_name} and disabled its managed profile. Reload CrowdSec to apply it.";
-            await Refresh();
-        }
-        catch (Exception ex)
-        {
-            Log.LogError(ex, "Could not save notification configuration");
-            _err = true; _msg = "Could not save the notification configuration.";
-        }
-        finally { _busy = false; }
-    }
-
-    private async Task Inspect(string name)
-    {
-        _busy = true; _msg = null;
-        try
-        {
-            var r = await Cli.InspectNotificationAsync(name);
-            _err = !r.Success;
-            _inspectName = name;
-            _inspectOutput = r.Success ? r.Stdout : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-            if (!r.Success) _msg = $"Failed to inspect {name}.";
-        }
-        finally { _busy = false; }
-    }
-
-    private static string? Truncate(string? s, int n)
-        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
-}

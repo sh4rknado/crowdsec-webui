@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdsecManagerViewModel", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdSecManager.Core", "CrowdSecManager.Core\CrowdSecManager.Core.csproj", "{D50869D5-4089-4943-808A-D3D9B43DDFFF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdSecManager.ViewModels.Tests", "CrowdSecManager.ViewModels.Tests\CrowdSecManager.ViewModels.Tests.csproj", "{B962976A-00CB-4908-80B6-723EC0F84BEE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Unittest", "Unittest", "{390ABCCA-CB26-40E5-AAAE-029C0A6CC006}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,9 +87,25 @@ Global
 		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x64.Build.0 = Release|Any CPU
 		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x86.ActiveCfg = Release|Any CPU
 		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x86.Build.0 = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|x64.Build.0 = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Debug|x86.Build.0 = Debug|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|x64.ActiveCfg = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|x64.Build.0 = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|x86.ActiveCfg = Release|Any CPU
+		{B962976A-00CB-4908-80B6-723EC0F84BEE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D2F24E20-86AF-4BBF-9B77-74A77402A5E1} = {390ABCCA-CB26-40E5-AAAE-029C0A6CC006}
+		{B962976A-00CB-4908-80B6-723EC0F84BEE} = {390ABCCA-CB26-40E5-AAAE-029C0A6CC006}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {79C27378-5AF1-4B83-A6EC-464E1F9A6FCA}

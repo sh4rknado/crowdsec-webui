@@ -1,7 +1,6 @@
 @page "/lapi"
 @attribute [Authorize]
-@inject ICrowdSecCliService Cli
-@inject ILogger<LapiPage> Log
+@inherits ViewModelComponentBase<LapiViewModel>
 
 <PageTitle>LAPI &middot; CrowdSec Manager</PageTitle>
 
@@ -9,11 +8,11 @@
     <header>
         <h2>Local API status</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+            <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.RefreshAsync">Refresh</button>
         </div>
     </header>
 
-    @if (string.IsNullOrEmpty(_statusOutput))
+    @if (string.IsNullOrEmpty(Vm.StatusOutput))
     {
         <p class="muted">Click "Refresh" to query the LAPI status with <code class="mono">cscli lapi status</code>.</p>
     }
@@ -21,10 +20,10 @@
     {
         <details class="raw" open>
             <summary>cscli lapi status</summary>
-            <pre class="mono">@_statusOutput</pre>
+            <pre class="mono">@Vm.StatusOutput</pre>
         </details>
     }
-    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+    @if (Vm.Message is not null) { <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div> }
 </section>
 
 <section class="card">
@@ -39,21 +38,21 @@
     </p>
     <div class="form-row">
         <label>Machine name
-            <input type="text" @bind="_regMachine" placeholder="myhost" />
+            <input type="text" @bind="Vm.RegisterMachine" placeholder="myhost" />
         </label>
         <label>LAPI URL
-            <input type="text" @bind="_regUrl" placeholder="http://1.2.3.4:8080" />
+            <input type="text" @bind="Vm.RegisterUrl" placeholder="http://1.2.3.4:8080" />
         </label>
         <label>Auto-registration token (optional)
-            <input type="text" @bind="_regToken" placeholder="token from the LAPI host" />
+            <input type="text" @bind="Vm.RegisterToken" placeholder="token from the LAPI host" />
         </label>
-        <button class="btn primary" disabled="@_busyReg" @onclick="Register">Register</button>
+        <button class="btn primary" disabled="@Vm.IsRegistering" @onclick="Vm.RegisterAsync">Register</button>
     </div>
-    @if (_registerOutput is not null)
+    @if (Vm.RegisterOutput is not null)
     {
         <details class="raw" open>
             <summary>cscli lapi register output</summary>
-            <pre class="mono">@_registerOutput</pre>
+            <pre class="mono">@Vm.RegisterOutput</pre>
         </details>
     }
 </section>
@@ -62,7 +61,7 @@
     <header>
         <h2>LAPI contexts</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busyCtx" @onclick="ListContexts">List contexts</button>
+            <button class="btn ghost" disabled="@Vm.IsLoadingContexts" @onclick="Vm.ListContextsAsync">List contexts</button>
         </div>
     </header>
     <p class="muted small">
@@ -70,77 +69,12 @@
         should receive). The list below is the output of
         <code class="mono">cscli lapi context list</code>.
     </p>
-    @if (_contextsOutput is not null)
+    @if (Vm.ContextsOutput is not null)
     {
         <details class="raw" open>
             <summary>cscli lapi context list</summary>
-            <pre class="mono">@_contextsOutput</pre>
+            <pre class="mono">@Vm.ContextsOutput</pre>
         </details>
     }
 </section>
 
-@code {
-    private string _statusOutput = "";
-    private bool _busy, _busyReg, _busyCtx;
-    private string? _msg; private bool _err;
-
-    // Register form
-    private string _regMachine = "";
-    private string _regUrl = "";
-    private string _regToken = "";
-    private string? _registerOutput;
-
-    // Contexts
-    private string? _contextsOutput;
-
-    private async Task Refresh()
-    {
-        _busy = true; _msg = null;
-        try
-        {
-            var r = await Cli.LapiStatusAsync();
-            _err = !r.Success;
-            _statusOutput = r.Success
-                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-        }
-        catch (Exception ex) { Log.LogDebug("lapi status: {Msg}", ex.Message); }
-        finally { _busy = false; }
-    }
-
-    private async Task Register()
-    {
-        _busyReg = true; _msg = null; _registerOutput = null;
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_regUrl))
-            { _err = true; _msg = "LAPI URL is required."; return; }
-
-            var r = await Cli.LapiRegisterAsync(
-                NullIfBlank(_regMachine), NullIfBlank(_regUrl), NullIfBlank(_regToken));
-            _err = !r.Success;
-            _registerOutput = r.Success
-                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-            _msg = r.Success
-                ? "Registration sent. Check the output for the next steps (the LAPI host must validate the machine)."
-                : $"Failed: {r.FlattenError() ?? r.Stderr}";
-        }
-        finally { _busyReg = false; }
-    }
-
-    private async Task ListContexts()
-    {
-        _busyCtx = true; _msg = null;
-        try
-        {
-            var r = await Cli.LapiContextListAsync();
-            _contextsOutput = r.Success
-                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-        }
-        finally { _busyCtx = false; }
-    }
-
-    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
-}

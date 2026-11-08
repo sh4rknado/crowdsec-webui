@@ -10,9 +10,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\CrowdSecManager.Core\CrowdSecManager.Core.csproj" />
     <ProjectReference Include="..\CrowdsecManagerModel\CrowdsecManagerModel.csproj" />
-    <Compile Include="..\CrowdSecManager.ViewModels\TerminalLine.cs" Link="TerminalLine.cs" />
-    <Compile Include="..\CrowdSecManager.ViewModels\TerminalViewModel.cs" Link="TerminalViewModel.cs" />
-    <Compile Include="..\CrowdSecManager.ViewModels\ViewModelBase.cs" Link="ViewModelBase.cs" />
+    <Compile Include="..\CrowdSecManager.ViewModels\*.cs" Link="%(Filename)%(Extension)" />
+    <PackageReference Include="YamlDotNet" Version="16.1.3" />
   </ItemGroup>
 
 </Project>

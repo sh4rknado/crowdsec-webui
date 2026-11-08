@@ -1,10 +1,6 @@
 @page "/threatmap"
 @attribute [Authorize]
-@implements IAsyncDisposable
-@inject IJSRuntime JS
-@inject IGeoIpService Geo
-@inject IThreatMapEventBus Events
-@inject ILogger<ThreatMap> Log
+@inherits ViewModelComponentBase<ThreatMapViewModel>
 
 <PageTitle>Threat Map &middot; CrowdSec Manager</PageTitle>
 
@@ -26,23 +22,23 @@
     <aside class="threatmap-side">
         <div class="card">
             <h3>Live stats</h3>
-            <div class="kv"><span>Total alerts</span><b>@_stats.TotalAlerts</b></div>
-            <div class="kv"><span>Active decisions</span><b>@_stats.TotalDecisions</b></div>
-            <div class="kv"><span>Last 24h</span><b>@_stats.Last24hAlerts</b></div>
+            <div class="kv"><span>Total alerts</span><b>@Vm.Stats.TotalAlerts</b></div>
+            <div class="kv"><span>Active decisions</span><b>@Vm.Stats.TotalDecisions</b></div>
+            <div class="kv"><span>Last 24h</span><b>@Vm.Stats.Last24hAlerts</b></div>
         </div>
 
         <div class="card">
             <h3>Top source countries</h3>
-            @if (_topCountries.Count == 0)
+            @if (Vm.TopCountries.Count == 0)
             {
                 <p class="muted small">Waiting for data...</p>
             }
             else
             {
                 <ul class="barlist">
-                    @foreach (var (k, v) in _topCountries)
+                    @foreach (var (k, v) in Vm.TopCountries)
                     {
-                        var pct = _topCountries.Values.Max() == 0 ? 0 : 100 * v / _topCountries.Values.Max();
+                        var pct = Vm.CountryPercentage(v);
                         <li>
                             <span class="lbl">@k</span>
                             <span class="bar"><span style="width:@(pct)%"></span></span>
@@ -55,19 +51,19 @@
 
         <div class="card">
             <h3>Recent attacks</h3>
-            @if (_recent.Count == 0)
+            @if (Vm.Recent.Count == 0)
             {
                 <p class="muted small">No live attacks yet. The feed polls every few seconds.</p>
             }
             else
             {
                 <ul class="attack-list">
-                    @foreach (var ev in _recent.Take(20))
+                    @foreach (var ev in Vm.VisibleRecent)
                     {
                         <li>
                             <span class="ip mono">@ev.SourceIp</span>
                             <span class="cc">@ev.Source?.CountryIsoCode</span>
-                            <span class="scn" title="@ev.Scenario">@(ev.Scenario?.Split('/').LastOrDefault() ?? "—")</span>
+                            <span class="scn" title="@ev.Scenario">@ThreatMapViewModel.ScenarioName(ev.Scenario)</span>
                             <span class="sev @ev.Severity.ToString().ToLowerInvariant()">@ev.Severity</span>
                         </li>
                     }
@@ -77,100 +73,3 @@
     </aside>
 </section>
 
-@code {
-    private ThreatMapStats _stats = new();
-    private Dictionary<string, int> _topCountries = new();
-    private readonly List<ThreatEvent> _recent = new();
-    private readonly HashSet<long> _recentAlertIds = new();
-    private readonly ThreatMapEventReplayBuffer _replayBuffer = new();
-    private bool _started;
-    private bool _mapReady;
-
-    protected override void OnInitialized()
-    {
-        Events.ThreatSpotted += OnThreatSpotted;
-        Events.StatsUpdated += OnStatsUpdated;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        if (_started) return;
-        _started = true;
-
-        // Init canvas
-        await JS.InvokeVoidAsync("threatMap.init", "threatCanvas", new
-        {
-            home = new
-            {
-                lat = Geo.Home.Latitude,
-                lon = Geo.Home.Longitude,
-                label = Geo.Home.City
-            },
-            geoAvailable = Geo.IsDatabaseAvailable
-        });
-
-        var snapshot = Events.GetSnapshot();
-        _stats = snapshot.Stats;
-        var firstDrain = true;
-        while (true)
-        {
-            var eventsToPlot = _replayBuffer.Drain(firstDrain ? snapshot.RecentEvents : null);
-            firstDrain = false;
-            if (eventsToPlot.Count == 0) break;
-
-            foreach (var ev in eventsToPlot)
-            {
-                if (_recentAlertIds.Add(ev.AlertId)) AddRecent(ev);
-                try { await JS.InvokeVoidAsync("threatMap.plotThreat", ev); }
-                catch (Exception ex) { Log.LogDebug("plotThreat: {Msg}", ex.Message); }
-            }
-        }
-        _mapReady = true;
-        StateHasChanged();
-    }
-
-    private void OnThreatSpotted(ThreatEvent ev, ThreatMapStats stats)
-        => _ = InvokeAsync(async () =>
-        {
-            if (_recentAlertIds.Add(ev.AlertId))
-            {
-                AddRecent(ev);
-                if (_mapReady)
-                {
-                    try { await JS.InvokeVoidAsync("threatMap.plotThreat", ev); }
-                    catch (Exception ex) { Log.LogDebug("plotThreat: {Msg}", ex.Message); }
-                }
-                else _replayBuffer.Enqueue(ev);
-            }
-            _stats = stats;
-            StateHasChanged();
-        });
-
-    private void AddRecent(ThreatEvent ev)
-    {
-        _recent.Insert(0, ev);
-        if (_recent.Count > 50) _recent.RemoveAt(_recent.Count - 1);
-        if (ev.Source?.Country is not null)
-        {
-            _topCountries[ev.Source.Country] = _topCountries.GetValueOrDefault(ev.Source.Country) + 1;
-            if (_topCountries.Count > 8)
-                _topCountries = _topCountries.OrderByDescending(x => x.Value).Take(8)
-                    .ToDictionary(x => x.Key, x => x.Value);
-        }
-    }
-
-    private void OnStatsUpdated(ThreatMapStats stats)
-        => _ = InvokeAsync(() =>
-        {
-            _stats = stats;
-            StateHasChanged();
-        });
-
-    public async ValueTask DisposeAsync()
-    {
-        Events.ThreatSpotted -= OnThreatSpotted;
-        Events.StatsUpdated -= OnStatsUpdated;
-        try { await JS.InvokeVoidAsync("threatMap.dispose"); } catch { }
-    }
-}

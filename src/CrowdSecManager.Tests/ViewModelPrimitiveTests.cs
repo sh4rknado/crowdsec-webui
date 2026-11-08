@@ -57,6 +57,12 @@ public sealed class ViewModelPrimitiveTests
         Assert.Equal([nameof(TestViewModel.Computed)], notifications);
     }
 
+    [Fact]
+    public async Task InitializeAsync_DefaultImplementationCompletes()
+    {
+        await new TestViewModel().InitializeAsync();
+    }
+
     [Theory]
     [InlineData("Cmd", "cmd", true)]
     [InlineData("Out", "out", false)]
@@ -76,5 +82,8 @@ public sealed class ViewModelPrimitiveTests
         };
 
         Assert.Equal(new TerminalLine(text, expectedClass, expectedPrompt), line);
+        Assert.Equal(text, line.Text);
+        Assert.Equal(expectedClass, line.Class);
+        Assert.Equal(expectedPrompt, line.IsPrompt);
     }
 }

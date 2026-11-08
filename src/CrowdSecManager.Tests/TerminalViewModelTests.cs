@@ -541,6 +541,17 @@ public sealed class TerminalViewModelTests
     }
 
     [Fact]
+    public void OutputRef_CanBeSetAndReadByTheView()
+    {
+        var vm = NewVm(new FakeTerminalRepository());
+        var outputRef = new Microsoft.AspNetCore.Components.ElementReference();
+
+        vm.OutputRef = outputRef;
+
+        Assert.Equal(outputRef, vm.OutputRef);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_BusyStateChange_RaisesINotifyPropertyChanged()
     {
         var tcs = new TaskCompletionSource<CliResult>();

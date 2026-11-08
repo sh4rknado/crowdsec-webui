@@ -1,7 +1,6 @@
 @page "/alerts"
 @attribute [Authorize]
-@inject ICrowdSecCliService Cli
-@inject ILogger<Alerts> Log
+@inherits ViewModelComponentBase<AlertsViewModel>
 
 <PageTitle>Alerts &middot; CrowdSec Manager</PageTitle>
 
@@ -9,39 +8,39 @@
     <header>
         <h2>Filters</h2>
         <div class="actions">
-            <button class="btn primary" @onclick="Refresh">Apply</button>
-            <button class="btn ghost" @onclick="ClearFilters">Clear</button>
+            <button class="btn primary" @onclick="Vm.RefreshAsync">Apply</button>
+            <button class="btn ghost" @onclick="Vm.ClearFiltersAsync">Clear</button>
         </div>
     </header>
     <div class="form-row">
         <label>Limit
-            <input type="number" min="10" max="1000" step="10" @bind="_limit" />
+            <input type="number" min="10" max="1000" step="10" @bind="Vm.Limit" />
         </label>
         <label>Source IP
-            <input type="text" @bind="_ip" placeholder="1.2.3.4" />
+            <input type="text" @bind="Vm.Ip" placeholder="1.2.3.4" />
         </label>
         <label>Scenario
-            <input type="text" @bind="_scenario" placeholder="crowdsecurity/ssh-bf" />
+            <input type="text" @bind="Vm.Scenario" placeholder="crowdsecurity/ssh-bf" />
         </label>
         <label>Since
-            <input type="text" @bind="_since" placeholder="4h, 7d" />
+            <input type="text" @bind="Vm.Since" placeholder="4h, 7d" />
         </label>
         <label>Until
-            <input type="text" @bind="_until" placeholder="1h" />
+            <input type="text" @bind="Vm.Until" placeholder="1h" />
         </label>
         <label>Type
-            <input type="text" @bind="_type" placeholder="ban, captcha" />
+            <input type="text" @bind="Vm.Type" placeholder="ban, captcha" />
         </label>
     </div>
 </section>
 
 <section class="card">
     <header>
-        <h2>Alerts (@_list.Count)</h2>
-        <button class="btn ghost" @onclick="Refresh">Refresh</button>
+        <h2>Alerts (@Vm.Alerts.Count)</h2>
+        <button class="btn ghost" @onclick="Vm.RefreshAsync">Refresh</button>
     </header>
 
-    @if (_list.Count == 0)
+    @if (Vm.Alerts.Count == 0)
     {
         <p class="muted">No alerts match the current filters.</p>
     }
@@ -55,18 +54,18 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var a in _list)
+                @foreach (var a in Vm.Alerts)
                 {
                     <tr>
                         <td class="num">@a.Id</td>
                         <td>@(a.CreatedAt == default ? "—" : a.CreatedAt.ToLocalTime().ToString("u"))</td>
-                        <td title="@a.Scenario">@(Truncate(a.Scenario, 50))</td>
+                        <td title="@a.Scenario">@(AlertsViewModel.Truncate(a.Scenario, 50))</td>
                         <td class="mono">@a.Source</td>
                         <td class="num">@a.EventsCount</td>
                         <td class="num">@(a.Decisions?.Count ?? 0)</td>
-                        <td>@Truncate(a.Message, 80)</td>
+                        <td>@AlertsViewModel.Truncate(a.Message, 80)</td>
                         <td>
-                            <button class="btn mini danger" @onclick="async () => await Delete(a.Id)">Delete</button>
+                            <button class="btn mini danger" @onclick="async () => await Vm.DeleteAsync(a.Id)">Delete</button>
                         </td>
                     </tr>
                 }
@@ -75,45 +74,3 @@
     }
 </section>
 
-@code {
-    private int _limit = 100;
-    private string _ip = "";
-    private string _scenario = "";
-    private string _since = "";
-    private string _until = "";
-    private string _type = "";
-    private List<CsAlert> _list = new();
-
-    protected override async Task OnInitializedAsync() => await Refresh();
-
-    private async Task Refresh()
-    {
-        try
-        {
-            _list = (await Cli.ListAlertsAsync(
-                Math.Clamp(_limit, 1, 1000),
-                NullIfBlank(_ip), NullIfBlank(_scenario),
-                NullIfBlank(_since), NullIfBlank(_until),
-                NullIfBlank(_type))).ToList();
-        }
-        catch (Exception ex) { Log.LogDebug("alerts: {Msg}", ex.Message); }
-    }
-
-    private void ClearFilters()
-    {
-        _ip = ""; _scenario = ""; _since = ""; _until = ""; _type = "";
-        _ = Refresh();
-    }
-
-    private async Task Delete(long id)
-    {
-        var result = await Cli.RunAsync(CrowdSecCommandBuilder.DeleteAlert(id));
-        if (!result.Success) Log.LogWarning("Could not delete alert {Id}: {Error}", id, result.FlattenError());
-        await Refresh();
-    }
-
-    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
-
-    private static string? Truncate(string? s, int n)
-        => string.IsNullOrEmpty(s) ? s : (s.Length > n ? s[..n] + "..." : s);
-}

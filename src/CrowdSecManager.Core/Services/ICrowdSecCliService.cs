@@ -1,0 +1,61 @@
+using CrowdsecManagerModel;
+
+namespace CrowdSecManager.Services;
+
+public interface ICrowdSecCliService
+{
+    Task<CliResult> RunAsync(params string[] args);
+    Task<CliResult> RunAsync(IEnumerable<string> args, CancellationToken ct = default);
+    Task<T?> RunJsonAsync<T>(IEnumerable<string> args, CancellationToken ct = default);
+    Task<CliResult> RunTerminalAsync(string commandLine, CancellationToken ct = default);
+    Task<IReadOnlyList<CsHubItem>> ListHubAsync(CancellationToken ct = default);
+    Task<CliResult> HubUpdateAsync(CancellationToken ct = default);
+    Task<CliResult> HubUpgradeAsync(CancellationToken ct = default);
+    Task<CliResult> UpgradeItemAsync(string type, string name, CancellationToken ct = default);
+    Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default);
+    Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default);
+    Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit = 100, CancellationToken ct = default);
+    Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(CancellationToken ct = default);
+    Task<CliResult> AddDecisionAsync(string ip, string duration = "4h", string? reason = null, string type = "ban", bool bypassAllowlist = false, CancellationToken ct = default);
+    Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null, bool all = false, CancellationToken ct = default);
+    Task<IReadOnlyList<CsBouncer>> ListBouncersAsync(CancellationToken ct = default);
+    Task<CliResult> AddBouncerAsync(string name, string? apiKey = null, CancellationToken ct = default);
+    Task<CliResult> DeleteBouncerAsync(string name, CancellationToken ct = default);
+    Task<IReadOnlyList<CsMachine>> ListMachinesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<CsMetric>> GetMetricsAsync(CancellationToken ct = default);
+    Task<CliResult> ReloadServiceAsync(CancellationToken ct = default);
+    Task<CliResult> ValidateEngineConfigAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<CsSimulation>> ListSimulationsAsync(CancellationToken ct = default);
+    Task<CsSimulationStatus> GetSimulationStatusAsync(CancellationToken ct = default);
+    Task<CliResult> EnableSimulationAsync(CancellationToken ct = default);
+    Task<CliResult> DisableSimulationAsync(CancellationToken ct = default);
+    Task<CliResult> AddSimulationAsync(string scenario, CancellationToken ct = default);
+    Task<CliResult> RemoveSimulationAsync(string scenario, CancellationToken ct = default);
+    Task<IReadOnlyList<CsNotification>> ListNotificationsAsync(CancellationToken ct = default);
+    Task<CliResult> InspectNotificationAsync(string name, CancellationToken ct = default);
+    Task<CliResult> ConsoleStatusAsync(CancellationToken ct = default);
+    Task<CliResult> ConsoleEnableAlertsAsync(CancellationToken ct = default);
+    Task<CliResult> ConsoleDisableAlertsAsync(CancellationToken ct = default);
+    Task<CliResult> ListAllowlistsAsync(CancellationToken ct = default);
+    Task<CliResult> RegisterMachineAsync(string? machineName = null, bool autoValidate = false, CancellationToken ct = default);
+    Task<CliResult> DeleteMachineAsync(string machineName, CancellationToken ct = default);
+    Task<CliResult> PruneMachinesAsync(CancellationToken ct = default);
+    Task<CliResult> InspectBouncerAsync(string name, CancellationToken ct = default);
+    Task<CliResult> PruneBouncersAsync(CancellationToken ct = default);
+    Task<CliResult> HubSearchAsync(string query, CancellationToken ct = default);
+    Task<CliResult> HubBranchAsync(CancellationToken ct = default);
+    Task<CliResult> HubTypesAsync(CancellationToken ct = default);
+    Task<CliResult> ConfigShowAsync(CancellationToken ct = default);
+    Task<CliResult> ConfigShowYamlAsync(CancellationToken ct = default);
+    Task<CliResult> ConfigBackupAsync(string targetFile, CancellationToken ct = default);
+    Task<CliResult> ConfigRestoreAsync(string sourceFile, CancellationToken ct = default);
+    Task<CliResult> ConfigFeatureFlagsAsync(CancellationToken ct = default);
+    Task<CliResult> LapiStatusAsync(CancellationToken ct = default);
+    Task<CliResult> LapiRegisterAsync(string? machineName, string? url, string? token, CancellationToken ct = default);
+    Task<CliResult> LapiContextListAsync(CancellationToken ct = default);
+    Task<CliResult> LapiContextShowAsync(string name, CancellationToken ct = default);
+    Task<CliResult> ExplainLogLineAsync(string logLine, string type, string? labels = null, CancellationToken ct = default);
+    Task<CliResult> ExplainLogFileAsync(string filePath, string type, bool verbose = false, CancellationToken ct = default);
+    Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit, string? ip, string? scenario, string? since, string? until, string? type, CancellationToken ct = default);
+    Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(string? ip, string? scenario, string? since, string? until, string? type, CancellationToken ct = default);
+}

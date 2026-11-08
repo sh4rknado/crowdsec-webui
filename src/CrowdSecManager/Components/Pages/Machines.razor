@@ -1,7 +1,6 @@
 @page "/machines"
 @attribute [Authorize]
-@inject ICrowdSecCliService Cli
-@inject ILogger<Machines> Log
+@inherits ViewModelComponentBase<MachinesViewModel>
 
 <PageTitle>Machines &middot; CrowdSec Manager</PageTitle>
 
@@ -9,36 +8,36 @@
     <header>
         <h2>Register a new machine</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busy" @onclick="Prune">Prune expired</button>
+            <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.PruneAsync">Prune expired</button>
         </div>
     </header>
     <div class="form-row">
         <label>Machine name
-            <input type="text" @bind="_newMachine" placeholder="myhost-or-leave-empty-for-auto" />
+            <input type="text" @bind="Vm.NewMachine" placeholder="myhost-or-leave-empty-for-auto" />
         </label>
         <label class="checkbox">
-            <input type="checkbox" @bind="_autoValidate" />
+            <input type="checkbox" @bind="Vm.AutoValidate" />
             <span>Auto-validate</span>
             <small class="muted">Skip manual validation of the new machine.</small>
         </label>
-        <button class="btn primary" disabled="@_busyAdd" @onclick="Register">Register machine</button>
+        <button class="btn primary" disabled="@Vm.IsAdding" @onclick="Vm.RegisterAsync">Register machine</button>
     </div>
-    @if (_registerOutput is not null)
+    @if (Vm.RegisterOutput is not null)
     {
         <details class="raw" open>
             <summary>cscli machines register output</summary>
-            <pre class="mono">@_registerOutput</pre>
+            <pre class="mono">@Vm.RegisterOutput</pre>
         </details>
     }
-    @if (_msg is not null) { <div class="@(_err ? "err" : "ok") _msg">@_msg</div> }
+    @if (Vm.Message is not null) { <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div> }
 </section>
 
 <section class="card">
     <header>
-        <h2>Registered machines (@_list.Count)</h2>
-        <button class="btn ghost" disabled="@_busy" @onclick="Refresh">Refresh</button>
+        <h2>Registered machines (@Vm.Machines.Count)</h2>
+        <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.RefreshAsync">Refresh</button>
     </header>
-    @if (_list.Count == 0)
+    @if (Vm.Machines.Count == 0)
     {
         <p class="muted">No machines registered with this Local API.</p>
     }
@@ -47,7 +46,7 @@
         <table class="data">
             <thead><tr><th>Machine ID</th><th>IP</th><th>Version</th><th>Last push</th><th>Status</th><th>Validated</th><th></th></tr></thead>
             <tbody>
-                @foreach (var m in _list)
+                @foreach (var m in Vm.Machines)
                 {
                     <tr>
                         <td class="mono">@m.MachineId</td>
@@ -59,7 +58,7 @@
                             @if (m.IsValidated) { <span class="badge ok">validated</span> }
                             else { <span class="badge warn">pending</span> }
                         </td>
-                        <td><button class="btn mini danger" @onclick="async () => await Delete(m.MachineId!)">Delete</button></td>
+                        <td><button class="btn mini danger" @onclick="async () => await Vm.DeleteAsync(m.MachineId!)">Delete</button></td>
                     </tr>
                 }
             </tbody>
@@ -67,64 +66,3 @@
     }
 </section>
 
-@code {
-    private List<CsMachine> _list = new();
-    private string _newMachine = "";
-    private bool _autoValidate;
-    private bool _busy, _busyAdd;
-    private string? _msg; private bool _err;
-    private string? _registerOutput;
-
-    protected override async Task OnInitializedAsync() => await Refresh();
-
-    private async Task Refresh()
-    {
-        try { _list = (await Cli.ListMachinesAsync()).ToList(); }
-        catch (Exception ex) { Log.LogDebug("machines: {Msg}", ex.Message); }
-    }
-
-    private async Task Register()
-    {
-        _busyAdd = true; _msg = null; _registerOutput = null;
-        try
-        {
-            var r = await Cli.RegisterMachineAsync(
-                string.IsNullOrWhiteSpace(_newMachine) ? null : _newMachine.Trim(),
-                _autoValidate);
-            _err = !r.Success;
-            _registerOutput = r.Success
-                ? r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-                : $"Exit code {r.ExitCode}\n\n{r.FlattenError() ?? r.Stderr}";
-            _msg = r.Success
-                ? "Machine registered. Credentials are written to local_api_credentials.yaml on the machine that ran cscli."
-                : $"Failed: {r.FlattenError() ?? r.Stderr}";
-            if (r.Success) { _newMachine = ""; _autoValidate = false; await Refresh(); }
-        }
-        finally { _busyAdd = false; }
-    }
-
-    private async Task Delete(string machineId)
-    {
-        var r = await Cli.DeleteMachineAsync(machineId);
-        _err = !r.Success;
-        _msg = r.Success
-            ? $"Machine '{machineId}' deleted."
-            : $"Failed: {r.FlattenError() ?? r.Stderr}";
-        await Refresh();
-    }
-
-    private async Task Prune()
-    {
-        _busy = true; _msg = null;
-        try
-        {
-            var r = await Cli.PruneMachinesAsync();
-            _err = !r.Success;
-            _msg = r.Success
-                ? "Pruned expired machines."
-                : $"Failed: {r.FlattenError() ?? r.Stderr}";
-            await Refresh();
-        }
-        finally { _busy = false; }
-    }
-}

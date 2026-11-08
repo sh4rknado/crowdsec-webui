@@ -1,8 +1,6 @@
 @page "/config"
 @attribute [Authorize]
-@inject IConfigFileService Cfg
-@inject ICrowdSecCliService Cli
-@inject ILogger<ConfigEditor> Log
+@inherits ViewModelComponentBase<ConfigEditorViewModel>
 
 <PageTitle>Configuration &middot; CrowdSec Manager</PageTitle>
 
@@ -10,13 +8,13 @@
     <div class="card file-list">
         <header><h2>Files</h2></header>
         <ul>
-            @foreach (var f in _files)
+            @foreach (var f in Vm.Files)
             {
                 <li>
-                    <button class="@(_selected == f.RelativePath ? "active" : "")"
-                            @onclick="async () => await Select(f.RelativePath)">
+                    <button class="@(Vm.Selected == f.RelativePath ? "active" : "")"
+                            @onclick="async () => await Vm.SelectAsync(f.RelativePath)">
                         <span class="fname">@f.RelativePath</span>
-                        <span class="fmeta">@FormatSize(f.SizeBytes) &middot; @FormatDate(f.LastModified)</span>
+                        <span class="fmeta">@ConfigEditorViewModel.FormatSize(f.SizeBytes) &middot; @ConfigEditorViewModel.FormatDate(f.LastModified)</span>
                         <span class="fdesc">@f.Description</span>
                     </button>
                 </li>
@@ -24,38 +22,38 @@
         </ul>
         <div class="new-file">
             <input type="text" placeholder="acquis.d/my-app.yaml"
-                   @bind="_newFilePath" @bind:event="oninput" />
-            <button class="btn ghost small" disabled="@string.IsNullOrWhiteSpace(_newFilePath)"
-                    @onclick="CreateNewFile">New file</button>
+                   @bind="Vm.NewFilePath" @bind:event="oninput" />
+            <button class="btn ghost small" disabled="@string.IsNullOrWhiteSpace(Vm.NewFilePath)"
+                    @onclick="Vm.CreateNewFileAsync">New file</button>
         </div>
     </div>
 
     <div class="card editor">
         <header>
-            <h2>@(_current?.RelativePath ?? "—")</h2>
+            <h2>@(Vm.Current?.RelativePath ?? "—")</h2>
             <div class="actions">
-                <button class="btn ghost" @onclick="Validate">Validate</button>
-                <button class="btn primary" disabled="@_busy" @onclick="Save">Save</button>
-                <button class="btn" disabled="@_busy" @onclick="ValidateWithCrowdSec">Test CrowdSec config</button>
-                <button class="btn" disabled="@_busy" @onclick="ApplyToCrowdSec">Apply / reload CrowdSec</button>
-                <button class="btn" disabled="@_busy" @onclick="Reload">Reload</button>
+                <button class="btn ghost" @onclick="Vm.ValidateAsync">Validate</button>
+                <button class="btn primary" disabled="@Vm.IsBusy" @onclick="Vm.Save">Save</button>
+                <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ValidateWithCrowdSecAsync">Test CrowdSec config</button>
+                <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ApplyToCrowdSecAsync">Apply / reload CrowdSec</button>
+                <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ReloadAsync">Reload</button>
             </div>
         </header>
 
-        @if (_current is null)
+        @if (Vm.Current is null)
         {
             <p class="muted">Select a file on the left to edit it.</p>
         }
         else
         {
-            @if (IsHubManaged(_current.RelativePath))
+            @if (ConfigEditorViewModel.IsHubManaged(Vm.Current.RelativePath))
             {
                 <div class="warn _msg">This file may be managed by the CrowdSec Hub. Direct edits can mark it tainted and prevent automatic upgrades. Prefer custom configuration files when possible.</div>
             }
-            <textarea class="yml-editor" spellcheck="false" @bind="_draft" @bind:event="oninput"></textarea>
-            @if (!string.IsNullOrEmpty(_msg))
+            <textarea class="yml-editor" spellcheck="false" @bind="Vm.Draft" @bind:event="oninput"></textarea>
+            @if (!string.IsNullOrEmpty(Vm.Message))
             {
-                <div class="@(_err ? "err" : "ok") _msg">@_msg</div>
+                <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div>
             }
         }
     </div>
@@ -65,10 +63,10 @@
     <header>
         <h2>cscli config tools</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowMerged">Show merged config</button>
-            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowMergedYaml">Show merged (YAML)</button>
-            <button class="btn ghost" disabled="@_busyCfg" @onclick="ShowFeatureFlags">Feature flags</button>
-            <button class="btn" disabled="@_busyCfg" @onclick="BackupConfig">Backup to tar</button>
+            <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowMergedAsync">Show merged config</button>
+            <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowMergedYamlAsync">Show merged (YAML)</button>
+            <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowFeatureFlagsAsync">Feature flags</button>
+            <button class="btn" disabled="@Vm.IsBusyConfig" @onclick="Vm.BackupConfigAsync">Backup to tar</button>
         </div>
     </header>
     <p class="muted small">
@@ -76,194 +74,11 @@
         fully-resolved configuration (after applying environment variables and <code>config.yaml.local</code>
         overrides). <strong>Backup to tar</strong> runs <code class="mono">cscli config backup</code>.
     </p>
-    @if (_configOutput is not null)
+    @if (Vm.ConfigOutput is not null)
     {
         <details class="raw" open>
-            <summary>@_configOutputTitle</summary>
-            <pre class="mono">@_configOutput</pre>
+            <summary>@Vm.ConfigOutputTitle</summary>
+            <pre class="mono">@Vm.ConfigOutput</pre>
         </details>
     }
 </section>
-
-@code {
-    private IReadOnlyList<ConfigFileInfo> _files = Array.Empty<ConfigFileInfo>();
-    private ConfigFileInfo? _current;
-    private string _draft = "";
-    private bool _busy, _busyCfg;
-    private string? _msg; private bool _err;
-    private string? _configOutput;
-    private string _configOutputTitle = "Output";
-
-    protected override void OnInitialized()
-    {
-        _files = Cfg.ListConfigFiles();
-    }
-
-    private async Task Select(string rel)
-    {
-        _selected = rel;
-        _current = Cfg.Load(rel);
-        _draft = _current?.Content ?? "";
-        _msg = null;
-        await Task.CompletedTask;
-    }
-    private string _selected = "";
-
-    private string _newFilePath = "";
-
-    private async Task CreateNewFile()
-    {
-        var path = _newFilePath.Trim().TrimStart('/', '\\');
-        if (string.IsNullOrWhiteSpace(path)) return;
-        var (created, err) = Cfg.TryCreate(path, out var detail);
-        _err = !created;
-        _msg = created
-            ? $"Created {path}. It will be picked up by CrowdSec on next reload (use 'Apply / reload CrowdSec')."
-            : (detail ?? err);
-        if (created)
-        {
-            _files = Cfg.ListConfigFiles();
-            _newFilePath = "";
-            await Select(path);
-        }
-        await Task.CompletedTask;
-    }
-
-    private async Task Reload()
-    {
-        if (_current is null) return;
-        _current = Cfg.Load(_current.RelativePath);
-        _draft = _current?.Content ?? "";
-        _msg = "Reloaded from disk."; _err = false;
-        await Task.CompletedTask;
-    }
-
-    private async Task Validate()
-    {
-        var (ok, err) = Cfg.ValidateYaml(_draft);
-        _err = !ok;
-        _msg = ok ? "YAML is valid." : err;
-        await Task.CompletedTask;
-    }
-
-    private void Save()
-    {
-        if (_current is null) return;
-        _busy = true; _msg = null;
-        try
-        {
-            var (ok, err) = Cfg.Save(_current.RelativePath, _draft);
-            _err = !ok;
-            _msg = ok ? "Saved. Apply or reload CrowdSec to load the change." : err;
-            if (ok) _current = Cfg.Load(_current.RelativePath);
-        }
-        finally { _busy = false; }
-    }
-
-    private async Task ApplyToCrowdSec()
-    {
-        _busy = true;
-        try
-        {
-            var result = await Cli.ReloadServiceAsync();
-            _err = !result.Success;
-            _msg = result.Success
-                ? "Reload signal sent to the CrowdSec process in this container."
-                : $"CrowdSec could not be reloaded from this container: {result.FlattenError() ?? result.Stderr}";
-        }
-        finally { _busy = false; }
-    }
-
-    private async Task ValidateWithCrowdSec()
-    {
-        _busy = true;
-        try
-        {
-            var result = await Cli.ValidateEngineConfigAsync();
-            _err = !result.Success;
-            _msg = result.Success
-                ? "CrowdSec accepted the saved configuration."
-                : $"CrowdSec configuration test failed: {result.FlattenError() ?? result.Stderr ?? result.Stdout}";
-        }
-        finally { _busy = false; }
-    }
-
-    private static string FormatSize(long b) => b switch
-    {
-        0 => "—",
-        < 1024 => b + " B",
-        < 1024 * 1024 => (b / 1024.0).ToString("F1") + " KiB",
-        _ => (b / 1024.0 / 1024).ToString("F1") + " MiB"
-    };
-
-    private static string FormatDate(DateTime d) => d == DateTime.MinValue ? "—" : d.ToString("yyyy-MM-dd HH:mm");
-
-    private static bool IsHubManaged(string path)
-        => path.StartsWith("parsers/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("scenarios/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("postoverflows/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("collections/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("contexts/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("appsec-rules/", StringComparison.OrdinalIgnoreCase)
-           || path.StartsWith("appsec-configs/", StringComparison.OrdinalIgnoreCase);
-
-    // ---- cscli config tools ----
-
-    private async Task ShowMerged()
-    {
-        _busyCfg = true;
-        try
-        {
-            var r = await Cli.ConfigShowAsync();
-            _configOutputTitle = "cscli config show";
-            _configOutput = FormatResult(r);
-        }
-        finally { _busyCfg = false; }
-    }
-
-    private async Task ShowMergedYaml()
-    {
-        _busyCfg = true;
-        try
-        {
-            var r = await Cli.ConfigShowYamlAsync();
-            _configOutputTitle = "cscli config show-yaml";
-            _configOutput = FormatResult(r);
-        }
-        finally { _busyCfg = false; }
-    }
-
-    private async Task ShowFeatureFlags()
-    {
-        _busyCfg = true;
-        try
-        {
-            var r = await Cli.ConfigFeatureFlagsAsync();
-            _configOutputTitle = "cscli config feature-flags";
-            _configOutput = FormatResult(r);
-        }
-        finally { _busyCfg = false; }
-    }
-
-    private async Task BackupConfig()
-    {
-        _busyCfg = true; _msg = null;
-        try
-        {
-            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var target = $"/var/lib/crowdsec-manager/backups/cscli-config-{stamp}.tgz";
-            var r = await Cli.ConfigBackupAsync(target);
-            _err = !r.Success;
-            _msg = r.Success
-                ? $"Backup written to {target} (in the container; bind-mounted on the host at the same path)."
-                : $"Backup failed: {r.FlattenError() ?? r.Stderr}";
-            _configOutputTitle = "cscli config backup";
-            _configOutput = FormatResult(r);
-        }
-        finally { _busyCfg = false; }
-    }
-
-    private static string FormatResult(CliResult r)
-        => r.Stdout + (string.IsNullOrWhiteSpace(r.Stderr) ? "" : "\n--- stderr ---\n" + r.Stderr)
-           + $"\n--- exit code: {r.ExitCode} ---";
-}

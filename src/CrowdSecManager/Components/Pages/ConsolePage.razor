@@ -1,8 +1,6 @@
 @page "/console"
 @attribute [Authorize]
-@inject CrowdSecManager.ViewModels.TerminalViewModel Vm
-@inject IJSRuntime JS
-@implements IDisposable
+@inherits ViewModelComponentBase<TerminalViewModel>
 
 <PageTitle>Terminal &middot; CrowdSec Manager</PageTitle>
 
@@ -16,7 +14,7 @@
     </header>
 
     <div class="terminal" id="cs-terminal">
-        <div class="terminal-output" @ref="_outputRef">
+        <div class="terminal-output" @ref="Vm.OutputRef">
             @foreach (var line in Vm.Lines)
             {
                 <div class="tline @line.Class">
@@ -41,9 +39,9 @@
                    autocorrect="off"
                    spellcheck="false"
                    placeholder="decisions list   (type 'help' for common commands)"
-                   value="@Vm.Input"
-                   @oninput="OnInput"
-                   @onkeydown="OnKeyDown"
+                   @bind="Vm.Input"
+                   @bind:event="oninput"
+                   @onkeydown="Vm.HandleKeyDownAsync"
                    disabled="@Vm.IsBusy" />
         </div>
     </div>
@@ -68,44 +66,3 @@
     </div>
 </section>
 
-@code {
-    private ElementReference _outputRef;
-
-    protected override void OnInitialized() => Vm.PropertyChanged += OnViewModelChanged;
-
-    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
-        _ = InvokeAsync(StateHasChanged);
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        // Auto-scroll the output to the bottom whenever new content appears.
-        try
-        {
-            await JS.InvokeVoidAsync("csTerminal.scrollToEnd", _outputRef);
-        }
-        catch { /* JS not ready yet during prerender - safe to ignore */ }
-    }
-
-    private void OnInput(ChangeEventArgs e) => Vm.Input = e.Value?.ToString() ?? "";
-
-    private async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        switch (e.Key)
-        {
-            case "Enter":
-                await Vm.ExecuteAsync(Vm.Input);
-                break;
-            case "ArrowUp":
-                Vm.BrowseHistory(-1);
-                break;
-            case "ArrowDown":
-                Vm.BrowseHistory(1);
-                break;
-        }
-    }
-
-    public void Dispose()
-    {
-        Vm.PropertyChanged -= OnViewModelChanged;
-    }
-}
