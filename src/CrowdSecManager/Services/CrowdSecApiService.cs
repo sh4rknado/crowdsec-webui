@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using Microsoft.Extensions.Options;
 
 namespace CrowdSecManager.Services;

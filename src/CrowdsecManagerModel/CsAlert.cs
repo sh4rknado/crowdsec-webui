@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Alert as returned by <c>cscli alerts list -o json</c> / <c>GET /alerts</c>.</summary>
 public sealed class CsAlert
@@ -15,7 +15,7 @@ public sealed class CsAlert
     public int EventsCount { get; set; }
     public string? StartAt { get; set; }
     public string? StopAt { get; set; }
-    public List<CsEvent> Events { get; set; } = new();
-    public List<CsDecision> Decisions { get; set; } = new();
-    public List<CsMeta> Meta { get; set; } = new();
+    public List<CsEvent> Events { get; set; } = [];
+    public List<CsDecision> Decisions { get; set; } = [];
+    public List<CsMeta> Meta { get; set; } = [];
 }

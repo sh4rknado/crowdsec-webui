@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using CrowdSecManager.Core.CommandLine;
 using CrowdSecManager.Core.Repositories;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;

@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Hub item as returned by <c>cscli hub list -o json</c>.</summary>
 public sealed class CsHubItem

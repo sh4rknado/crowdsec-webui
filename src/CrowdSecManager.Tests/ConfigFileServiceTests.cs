@@ -1,4 +1,4 @@
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -47,6 +47,17 @@ public sealed class ConfigFileServiceTests : IDisposable
 
         Assert.True(valid, error);
         Assert.Equal("name: profile\n", File.ReadAllText(Path.Combine(_root, "profiles.yaml")));
+    }
+
+    [Fact]
+    public void Save_WritesLocalProfilesOverrideFile()
+    {
+        const string content = "---\nname: manager_notification_slack_default\nfilters:\n  - Alert.Remediation == true\nnotifications:\n  - slack_default\non_success: continue\n";
+
+        var (valid, error) = _service.Save("profiles.yaml.local", content);
+
+        Assert.True(valid, error);
+        Assert.Equal(content, File.ReadAllText(Path.Combine(_root, "profiles.yaml.local")));
     }
 
     [Fact]

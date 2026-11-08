@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Decision as returned by <c>cscli decisions list -o json</c> / <c>GET /decisions</c>.</summary>
 public sealed class CsDecision
@@ -15,5 +15,5 @@ public sealed class CsDecision
     public string? BanTenant { get; set; }
     public bool Simulated { get; set; }
     public string? Reason { get; set; }
-    public List<CsAlert> Alerts { get; set; } = new();
+    public List<CsAlert> Alerts { get; set; } = [];
 }

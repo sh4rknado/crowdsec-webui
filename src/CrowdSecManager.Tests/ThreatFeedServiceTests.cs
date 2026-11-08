@@ -1,5 +1,5 @@
 using CrowdSecManager.Data;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;

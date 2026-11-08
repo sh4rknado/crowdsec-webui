@@ -26,7 +26,7 @@ a single `systemctl start`.
 | **Machines** | List CrowdSec machines registered against this Local API with version, last push, validated state. Register new machines (`--auto` optional), delete by ID, prune expired machines. |
 | **LAPI** | Show Local API status (`cscli lapi status`), register a machine against a remote LAPI (`cscli lapi register --machine/--url/--token`), and list LAPI contexts (`cscli lapi context list`). |
 | **Simulation** | Toggle global simulation mode (`cscli simulation enable/disable`) and manage per-scenario simulation entries (`add`/`remove`/`list`). Useful to dry-run new scenarios without enforcing bans. |
-| **Notifications** | List configured notification plugins (`cscli notifications list`) and inspect their resolved configuration. Notification YAML files are edited from the Configuration page. |
+| **Notifications** | Guided setup for Slack, HTTP webhooks, and email. Creates plugin YAML, adds/removes its managed CrowdSec notification profile, filters by alert scope, and lists/inspects configured plugins. |
 | **Console** | Show CrowdSec Central API registration status (`cscli console status`) and toggle alert sharing (`console enable/disable alerts`). |
 | **Configuration editor** | Whitelisted YAML config files edited in a textarea with live YAML validation, on-demand tar backup of the whole `/etc/crowdsec` directory, and `cscli config` tools: show merged config, show merged (YAML), feature flags, backup. |
 | **Authentication** | ASP.NET Identity with SQLite, cookie auth, configurable password policy, admin role seeded on first boot. |
@@ -401,16 +401,20 @@ but bouncers do not actually block the source IP.
 
 ### Notifications
 
-Notification plugins forward alerts to external systems (email, Slack,
-HTTP webhook, Sentinel). The plugin lifecycle is:
+The **Notifications** page has a guided setup for the built-in Slack, HTTP,
+and email plugins. Enter the plugin name and connection details, then choose
+whether to send all remediation alerts or only IP/range decisions. Saving
+creates `/etc/crowdsec/notifications/<name>.yaml` and manages a matching
+notification-only profile in `/etc/crowdsec/profiles.yaml.local`. The profile
+uses `on_success: continue`, so CrowdSec continues to its regular decision
+profiles after dispatching the alert.
 
-1. Drop a YAML config in `/etc/crowdsec/notifications/<name>.yaml`.
-2. Reference it in `profiles.yaml` under `notifications`.
-3. Reload CrowdSec (use the **Reload CrowdSec** action on the Hub page).
-
-The **Notifications** page lists configured plugins (`cscli notifications
-list`) and lets you inspect each one's resolved configuration. The YAML
-files themselves are edited from the **Configuration** page.
+To stop delivery, clear **Enable delivery** and save; the wizard removes only
+the profile it manages for that plugin. Existing local profiles are retained.
+The page also lists plugins using `cscli notifications list` and shows their
+resolved configuration with **Inspect**. After saving, use **Configuration →
+Reload CrowdSec** to apply changes. Advanced plugin options remain editable in
+the Configuration editor.
 
 ### Console (Central API)
 

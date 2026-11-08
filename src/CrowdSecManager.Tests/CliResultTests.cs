@@ -1,4 +1,4 @@
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using Xunit;
 
 namespace CrowdSecManager.Tests;

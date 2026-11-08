@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using CrowdSecManager.Core.Repositories;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;

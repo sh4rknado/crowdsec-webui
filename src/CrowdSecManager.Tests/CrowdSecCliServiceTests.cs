@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using MaxMind.GeoIP2;
 using MaxMind.GeoIP2.Responses;
 using Microsoft.Extensions.Options;

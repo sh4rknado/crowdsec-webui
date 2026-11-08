@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 public sealed class CsMeta
 {

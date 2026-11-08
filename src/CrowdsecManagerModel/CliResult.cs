@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Result of a <c>cscli</c> command execution.</summary>
 public sealed class CliResult
@@ -13,8 +13,6 @@ public sealed class CliResult
     public string? FlattenError()
     {
         if (Success) return null;
-        if (!string.IsNullOrWhiteSpace(Stderr)) return Stderr.Trim();
-        if (!string.IsNullOrWhiteSpace(Stdout)) return Stdout.Trim();
-        return null;
+        return !string.IsNullOrWhiteSpace(Stderr) ? Stderr.Trim() : !string.IsNullOrWhiteSpace(Stdout) ? Stdout.Trim() : null;
     }
 }

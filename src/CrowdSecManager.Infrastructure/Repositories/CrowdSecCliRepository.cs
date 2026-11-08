@@ -1,5 +1,5 @@
 using CrowdSecManager.Core.Repositories;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 
 namespace CrowdSecManager.Infrastructure.Repositories;

@@ -1,4 +1,4 @@
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using System.Formats.Tar;
 using System.IO.Compression;
 using Microsoft.Extensions.Options;

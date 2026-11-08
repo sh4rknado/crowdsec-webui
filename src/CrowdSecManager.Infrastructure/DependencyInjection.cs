@@ -1,7 +1,7 @@
 using CrowdSecManager.Data;
 using CrowdSecManager.Core.Repositories;
 using CrowdSecManager.Infrastructure.Repositories;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;

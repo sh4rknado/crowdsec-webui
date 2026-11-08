@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Notification plugin returned by <c>cscli notifications list -o json</c>.</summary>
 public sealed class CsNotification

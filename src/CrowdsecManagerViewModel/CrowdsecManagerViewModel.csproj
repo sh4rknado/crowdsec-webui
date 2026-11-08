@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CrowdsecManagerModel\CrowdsecManagerModel.csproj" />
+    <Compile Include="..\CrowdSecManager.ViewModels\TerminalLine.cs" Link="TerminalLine.cs" />
+    <Compile Include="..\CrowdSecManager.ViewModels\TerminalViewModel.cs" Link="TerminalViewModel.cs" />
+    <Compile Include="..\CrowdSecManager.ViewModels\ViewModelBase.cs" Link="ViewModelBase.cs" />
+  </ItemGroup>
+
+</Project>

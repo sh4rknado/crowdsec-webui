@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using CrowdSecManager.Data;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

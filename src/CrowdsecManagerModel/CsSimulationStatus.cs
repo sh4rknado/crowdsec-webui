@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Aggregated simulation status returned by <c>cscli simulation status</c>
 /// (parsed from the human-form output - there is no JSON form for status).</summary>

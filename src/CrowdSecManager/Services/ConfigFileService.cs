@@ -1,4 +1,4 @@
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using System.Formats.Tar;
 using System.IO.Compression;
 using Microsoft.Extensions.Options;
@@ -17,6 +17,7 @@ public sealed class ConfigFileService : IConfigFileService
     {
         ("config.yaml", "Main CrowdSec configuration (api server, db, common settings)"),
         ("profiles.yaml", "Decision profiles - what to do when an alert fires"),
+        ("profiles.yaml.local", "Local decision profile overrides and notification delivery"),
         ("acquis.yaml", "Log acquisition - which log files / journald / syslog to ingest"),
         ("console.yaml", "CrowdSec Console registration and sharing settings"),
         ("local_api_credentials.yaml", "Credentials used to talk to a remote Local API"),
@@ -315,11 +316,12 @@ public sealed class ConfigFileService : IConfigFileService
         var normalized = rel.Replace('\\', '/');
         var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length == 0 || segments.Any(s => s is "." or "..")) return false;
-        if (!IsYamlPath(normalized)) return false;
+        var isKnownTopLevelFile = segments.Length == 1
+            && KnownFiles.Any(f => string.Equals(f.Path, normalized, StringComparison.OrdinalIgnoreCase));
+        if (!isKnownTopLevelFile && !IsYamlPath(normalized)) return false;
 
-        var inWhitelist = segments.Length == 1
-            ? KnownFiles.Any(f => string.Equals(f.Path, normalized, StringComparison.OrdinalIgnoreCase))
-            : EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase);
+        var inWhitelist = isKnownTopLevelFile
+            || (segments.Length > 1 && EditableDirectories.Contains(segments[0], StringComparer.OrdinalIgnoreCase));
         if (!inWhitelist) return false;
 
         var root = Path.GetFullPath(_opt.ConfigDir);

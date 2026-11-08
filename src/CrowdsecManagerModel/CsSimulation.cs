@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Scenario entry returned by <c>cscli simulation list -o json</c>.</summary>
 public sealed class CsSimulation

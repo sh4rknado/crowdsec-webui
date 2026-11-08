@@ -1,7 +1,7 @@
 using System.Net;
 using System.Reflection;
 using System.Text;
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 using CrowdSecManager.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

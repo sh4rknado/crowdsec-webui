@@ -66,12 +66,16 @@ names are mapped to those keys by the entrypoint and application.
 | `ICrowdSecApiService` | Scoped (HttpClient) | REST client for CrowdSec LAPI. Bearer-token auth via `CrowdSec__BouncerApiKey` (the entrypoint maps the legacy `CROWDSEC_BOUNCER_APIKEY`); used for health and decision reads. Bouncer credentials cannot search alerts. |
 | `IGeoIpService` | Singleton | MaxMind `DatabaseReader` over the image-bundled `GeoLite2-City.mmdb`. Falls back to deterministic unknown coordinates if the DB is missing or unreadable. Resolves private IPs to the configured home location. |
 | `IConfigFileService` | Scoped | Reads/writes whitelisted top-level CrowdSec YAML plus YAML under `acquis.d`, `notifications`, parsers, scenarios, postoverflows, collections, contexts and AppSec config directories. Validates syntax with YamlDotNet and atomically replaces files. Tar-backs up `/etc/crowdsec/` on demand. |
+| `NotificationConfigBuilder` | Static | Builds validated Slack, HTTP, and email plugin YAML and idempotently manages notification-only documents in `profiles.yaml.local`; generated profiles use `on_success: continue` so existing decision profiles still process the alert. |
 | `ThreatFeedService` | Hosted (BackgroundService) | Polls alerts via `cscli` every `ThreatFeed:PollIntervalSeconds` (default 8s), reads decisions from LAPI, geolocates new attacker IPs, persists them to `ThreatHistoryEntry`, and publishes events through `ThreatMapEventBus`. Falls back to `cscli` for decisions if LAPI is unreachable. |
 | `ThreatMapEventBus` | Singleton | In-process fan-out and bounded event snapshot for threat-map components. Events reach authenticated browsers only through their existing Blazor Server circuits; no separate public threat-map hub is mapped. |
 
 ### 2.3 Browser side
 
 - Blazor Server renders the UI server-side; the browser receives DOM diffs over a SignalR circuit.
+- `Notifications.razor` provides a guided setup for Slack, HTTP webhooks, and
+  email, writes plugin configuration through `IConfigFileService`, and lets
+  users select remediation scope and enable/disable the generated profile.
 - The threat map subscribes to `ThreatMapEventBus` in its authenticated Blazor
   circuit. New events are forwarded to `window.threatMap.plotThreat(ev)` via
   JS interop; no anonymous `/hubs/threatmap` endpoint is exposed.

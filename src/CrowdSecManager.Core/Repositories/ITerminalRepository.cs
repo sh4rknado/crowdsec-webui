@@ -1,4 +1,4 @@
-using CrowdSecManager.Models;
+using CrowdsecManagerModel;
 
 namespace CrowdSecManager.Core.Repositories;
 

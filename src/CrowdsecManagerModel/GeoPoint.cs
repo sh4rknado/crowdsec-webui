@@ -1,4 +1,4 @@
-namespace CrowdSecManager.Models;
+namespace CrowdsecManagerModel;
 
 /// <summary>Geographic point used by the threat-map renderer.</summary>
 public sealed class GeoPoint
