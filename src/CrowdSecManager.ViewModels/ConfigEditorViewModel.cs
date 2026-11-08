@@ -3,34 +3,23 @@ using CrowdsecManagerModel;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class ConfigEditorViewModel : ViewModelBase
+public sealed class ConfigEditorViewModel(IConfigFileService config, ICrowdSecCliService cli) : ViewModelBase
 {
-    private readonly IConfigFileService _config;
-    private readonly ICrowdSecCliService _cli;
-    private IReadOnlyList<ConfigFileInfo> _files = [];
-    private ConfigFileInfo? _current;
-    private string _draft = "";
-    private bool _isBusy;
-    private bool _isBusyConfig;
-    private string? _message;
-    private bool _hasError;
-    private string? _configOutput;
-    private string _configOutputTitle = "Output";
-    private string _selected = "";
-    private string _newFilePath = "";
+    private readonly IConfigFileService _config = config;
+    private readonly ICrowdSecCliService _cli = cli;
 
-    public ConfigEditorViewModel(IConfigFileService config, ICrowdSecCliService cli) { _config = config; _cli = cli; }
-    public IReadOnlyList<ConfigFileInfo> Files { get => _files; private set => SetProperty(ref _files, value); }
-    public ConfigFileInfo? Current { get => _current; private set => SetProperty(ref _current, value); }
-    public string Draft { get => _draft; set => SetProperty(ref _draft, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsBusyConfig { get => _isBusyConfig; private set => SetProperty(ref _isBusyConfig, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
-    public string? ConfigOutput { get => _configOutput; private set => SetProperty(ref _configOutput, value); }
-    public string ConfigOutputTitle { get => _configOutputTitle; private set => SetProperty(ref _configOutputTitle, value); }
-    public string Selected { get => _selected; private set => SetProperty(ref _selected, value); }
-    public string NewFilePath { get => _newFilePath; set => SetProperty(ref _newFilePath, value); }
+    public string Draft { get; set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsBusyConfig { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public string? ConfigOutput { get; private set => SetProperty(ref field, value); }
+    public string ConfigOutputTitle { get; private set => SetProperty(ref field, value); } = "Output";
+    public string Selected { get; private set => SetProperty(ref field, value); } = "";
+    public string NewFilePath { get; set => SetProperty(ref field, value); } = "";
+
+    public ConfigFileInfo? Current { get; private set => SetProperty(ref field, value); }
+    public IReadOnlyList<ConfigFileInfo> Files { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync()
     {

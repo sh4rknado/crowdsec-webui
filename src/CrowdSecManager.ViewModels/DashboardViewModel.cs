@@ -4,38 +4,23 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class DashboardViewModel : ViewModelBase
+public sealed class DashboardViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, IConfigFileService config, IGeoIpService geo, ILogger<DashboardViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecApiService _api;
-    private readonly ICrowdSecCliService _cli;
-    private readonly IConfigFileService _config;
-    private readonly IGeoIpService _geo;
-    private readonly ILogger<DashboardViewModel> _log;
-    private ThreatMapStats _stats = new();
-    private IReadOnlyList<CsDecision> _recentDecisions = [];
-    private bool _geoOk = true;
-    private bool _isHubBusy;
-    private bool _isConfigBusy;
-    private string? _actionMessage;
-    private bool _actionError;
+    private readonly ICrowdSecApiService _api = api;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly IConfigFileService _config = config;
+    private readonly IGeoIpService _geo = geo;
+    private readonly ILogger<DashboardViewModel> _log = log;
 
-    public DashboardViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, IConfigFileService config, IGeoIpService geo, ILogger<DashboardViewModel> log)
-    {
-        _api = api;
-        _cli = cli;
-        _config = config;
-        _geo = geo;
-        _log = log;
-    }
-
-    public ThreatMapStats Stats { get => _stats; private set => SetProperty(ref _stats, value); }
-    public IReadOnlyList<CsDecision> RecentDecisions { get => _recentDecisions; private set => SetProperty(ref _recentDecisions, value); }
-    public bool GeoOk { get => _geoOk; private set => SetProperty(ref _geoOk, value); }
-    public bool IsHubBusy { get => _isHubBusy; private set => SetProperty(ref _isHubBusy, value); }
-    public bool IsConfigBusy { get => _isConfigBusy; private set => SetProperty(ref _isConfigBusy, value); }
-    public string? ActionMessage { get => _actionMessage; private set => SetProperty(ref _actionMessage, value); }
-    public bool ActionError { get => _actionError; private set => SetProperty(ref _actionError, value); }
+    public bool GeoOk { get; private set => SetProperty(ref field, value); } = true;
+    public bool IsHubBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsConfigBusy { get; private set => SetProperty(ref field, value); }
+    public string? ActionMessage { get; private set => SetProperty(ref field, value); }
+    public bool ActionError { get; private set => SetProperty(ref field, value); }
     public bool GeoDatabaseAvailable => _geo.IsDatabaseAvailable;
+
+    public ThreatMapStats Stats { get; private set => SetProperty(ref field, value); } = new();
+    public IReadOnlyList<CsDecision> RecentDecisions { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync() => RefreshAsync();
 

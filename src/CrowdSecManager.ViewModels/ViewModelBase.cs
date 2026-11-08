@@ -3,16 +3,6 @@ using System.Runtime.CompilerServices;
 
 namespace CrowdSecManager.ViewModels;
 
-public interface IAfterRenderViewModel
-{
-    Task OnAfterRenderAsync(bool firstRender);
-}
-
-public interface IUiDispatcherAware
-{
-    void SetDispatcher(Func<Func<Task>, Task> dispatcher);
-}
-
 /// <summary>Provides observable property helpers for view models.</summary>
 public abstract class ViewModelBase : INotifyPropertyChanged
 {

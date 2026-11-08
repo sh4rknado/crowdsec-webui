@@ -4,32 +4,21 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class ExplainViewModel : ViewModelBase
+public sealed class ExplainViewModel(ICrowdSecCliService cli, ILogger<ExplainViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<ExplainViewModel> _log;
-    private string _type = "syslog";
-    private string _labels = "";
-    private string _logLine = "";
-    private string _filePath = "";
-    private bool _verbose;
-    private bool _isBusy;
-    private string? _output;
-    private int _exitCode;
-    private string? _message;
-    private bool _hasError;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<ExplainViewModel> _log = log;
 
-    public ExplainViewModel(ICrowdSecCliService cli, ILogger<ExplainViewModel> log) { _cli = cli; _log = log; }
-    public string Type { get => _type; set => SetProperty(ref _type, value); }
-    public string Labels { get => _labels; set => SetProperty(ref _labels, value); }
-    public string LogLine { get => _logLine; set => SetProperty(ref _logLine, value); }
-    public string FilePath { get => _filePath; set => SetProperty(ref _filePath, value); }
-    public bool Verbose { get => _verbose; set => SetProperty(ref _verbose, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public string? Output { get => _output; private set => SetProperty(ref _output, value); }
-    public int ExitCode { get => _exitCode; private set => SetProperty(ref _exitCode, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
+    public string Type { get; set => SetProperty(ref field, value); } = "syslog";
+    public string Labels { get; set => SetProperty(ref field, value); } = "";
+    public string LogLine { get; set => SetProperty(ref field, value); } = "";
+    public string FilePath { get; set => SetProperty(ref field, value); } = "";
+    public bool Verbose { get; set => SetProperty(ref field, value); }
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public string? Output { get; private set => SetProperty(ref field, value); }
+    public int ExitCode { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
 
     public async Task ExplainLineAsync()
     {

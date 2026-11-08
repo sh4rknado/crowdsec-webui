@@ -2,13 +2,11 @@ using CrowdsecManagerModel;
 
 namespace CrowdSecManager.Services;
 
-public sealed class ThreatMapEventReplayBuffer
+public sealed class ThreatMapEventReplayBuffer(int capacity = 60)
 {
     private readonly object _gate = new();
     private readonly Queue<ThreatEvent> _pending = new();
-    private readonly int _capacity;
-
-    public ThreatMapEventReplayBuffer(int capacity = 60) => _capacity = Math.Max(1, capacity);
+    private readonly int _capacity = Math.Max(1, capacity);
 
     public void Enqueue(ThreatEvent threat)
     {
@@ -29,7 +27,7 @@ public sealed class ThreatMapEventReplayBuffer
                     unique.TryAdd(threat.AlertId, threat);
             while (_pending.TryDequeue(out var threat))
                 unique.TryAdd(threat.AlertId, threat);
-            return unique.Values.OrderBy(threat => threat.CreatedAt).ThenBy(threat => threat.AlertId).ToArray();
+            return [.. unique.Values.OrderBy(threat => threat.CreatedAt).ThenBy(threat => threat.AlertId)];
         }
     }
 }

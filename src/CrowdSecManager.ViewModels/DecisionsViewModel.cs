@@ -4,35 +4,23 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class DecisionsViewModel : ViewModelBase
+public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, ILogger<DecisionsViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecApiService _api;
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<DecisionsViewModel> _log;
-    private string _ip = "";
-    private string _duration = "4h";
-    private string _type = "ban";
-    private string _reason = "Manual SOC decision";
-    private bool _bypassAllowlist;
-    private IReadOnlyList<CsDecision> _decisions = [];
-    private bool _isAdding;
-    private bool _isDeletingAll;
-    private string? _message;
-    private bool _hasError;
+    private readonly ICrowdSecApiService _api = api;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<DecisionsViewModel> _log = log;
 
-    public DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliService cli, ILogger<DecisionsViewModel> log)
-    { _api = api; _cli = cli; _log = log; }
+    public string Ip { get; set => SetProperty(ref field, value); } = "";
+    public string Duration { get; set => SetProperty(ref field, value); } = "4h";
+    public string Type { get; set => SetProperty(ref field, value); } = "ban";
+    public string Reason { get; set => SetProperty(ref field, value); } = "Manual SOC decision";
+    public bool BypassAllowlist { get; private set => SetProperty(ref field, value); }
+    public bool IsAdding { get; private set => SetProperty(ref field, value); }
+    public bool IsDeletingAll { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
 
-    public string Ip { get => _ip; set => SetProperty(ref _ip, value); }
-    public string Duration { get => _duration; set => SetProperty(ref _duration, value); }
-    public string Type { get => _type; set => SetProperty(ref _type, value); }
-    public string Reason { get => _reason; set => SetProperty(ref _reason, value); }
-    public bool BypassAllowlist { get => _bypassAllowlist; set => SetProperty(ref _bypassAllowlist, value); }
-    public IReadOnlyList<CsDecision> Decisions { get => _decisions; private set => SetProperty(ref _decisions, value); }
-    public bool IsAdding { get => _isAdding; private set => SetProperty(ref _isAdding, value); }
-    public bool IsDeletingAll { get => _isDeletingAll; private set => SetProperty(ref _isDeletingAll, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
+    public IReadOnlyList<CsDecision> Decisions { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync() => RefreshAsync();
 

@@ -4,34 +4,22 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class LapiViewModel : ViewModelBase
+public sealed class LapiViewModel(ICrowdSecCliService cli, ILogger<LapiViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<LapiViewModel> _log;
-    private string _statusOutput = "";
-    private bool _isBusy;
-    private bool _isRegistering;
-    private bool _isLoadingContexts;
-    private string? _message;
-    private bool _hasError;
-    private string _registerMachine = "";
-    private string _registerUrl = "";
-    private string _registerToken = "";
-    private string? _registerOutput;
-    private string? _contextsOutput;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<LapiViewModel> _log = log;
 
-    public LapiViewModel(ICrowdSecCliService cli, ILogger<LapiViewModel> log) { _cli = cli; _log = log; }
-    public string StatusOutput { get => _statusOutput; private set => SetProperty(ref _statusOutput, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsRegistering { get => _isRegistering; private set => SetProperty(ref _isRegistering, value); }
-    public bool IsLoadingContexts { get => _isLoadingContexts; private set => SetProperty(ref _isLoadingContexts, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
-    public string RegisterMachine { get => _registerMachine; set => SetProperty(ref _registerMachine, value); }
-    public string RegisterUrl { get => _registerUrl; set => SetProperty(ref _registerUrl, value); }
-    public string RegisterToken { get => _registerToken; set => SetProperty(ref _registerToken, value); }
-    public string? RegisterOutput { get => _registerOutput; private set => SetProperty(ref _registerOutput, value); }
-    public string? ContextsOutput { get => _contextsOutput; private set => SetProperty(ref _contextsOutput, value); }
+    public string StatusOutput { get; private set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsRegistering { get; private set => SetProperty(ref field, value); }
+    public bool IsLoadingContexts { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public string RegisterMachine { get; private set => SetProperty(ref field, value); } = "";
+    public string RegisterUrl { get; private set => SetProperty(ref field, value); } = "";
+    public string RegisterToken { get; private set => SetProperty(ref field, value); } = "";
+    public string? RegisterOutput { get; private set => SetProperty(ref field, value); }
+    public string? ContextsOutput { get; private set => SetProperty(ref field, value); }
 
     public async Task RefreshAsync()
     {

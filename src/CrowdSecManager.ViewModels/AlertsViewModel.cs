@@ -5,27 +5,19 @@ using System.Globalization;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class AlertsViewModel : ViewModelBase
+public sealed class AlertsViewModel(ICrowdSecCliService cli, ILogger<AlertsViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<AlertsViewModel> _log;
-    private int _limit = 100;
-    private string _ip = "";
-    private string _scenario = "";
-    private string _since = "";
-    private string _until = "";
-    private string _type = "";
-    private IReadOnlyList<CsAlert> _alerts = [];
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<AlertsViewModel> _log = log;
 
-    public AlertsViewModel(ICrowdSecCliService cli, ILogger<AlertsViewModel> log) { _cli = cli; _log = log; }
+    public int Limit { get; set => SetProperty(ref field, value); } = 100;
+    public string Ip { get; set => SetProperty(ref field, value); } = "";
+    public string Scenario { get; set => SetProperty(ref field, value); } = "";
+    public string Since { get; set => SetProperty(ref field, value); } = "";
+    public string Until { get; set => SetProperty(ref field, value); } = "";
+    public string Type { get; set => SetProperty(ref field, value); } = "";
 
-    public int Limit { get => _limit; set => SetProperty(ref _limit, value); }
-    public string Ip { get => _ip; set => SetProperty(ref _ip, value); }
-    public string Scenario { get => _scenario; set => SetProperty(ref _scenario, value); }
-    public string Since { get => _since; set => SetProperty(ref _since, value); }
-    public string Until { get => _until; set => SetProperty(ref _until, value); }
-    public string Type { get => _type; set => SetProperty(ref _type, value); }
-    public IReadOnlyList<CsAlert> Alerts { get => _alerts; private set => SetProperty(ref _alerts, value); }
+    public IReadOnlyList<CsAlert> Alerts { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync() => RefreshAsync();
 

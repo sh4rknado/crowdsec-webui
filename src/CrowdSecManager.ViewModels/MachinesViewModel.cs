@@ -4,29 +4,20 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class MachinesViewModel : ViewModelBase
+public sealed class MachinesViewModel(ICrowdSecCliService cli, ILogger<MachinesViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<MachinesViewModel> _log;
-    private IReadOnlyList<CsMachine> _machines = [];
-    private string _newMachine = "";
-    private bool _autoValidate;
-    private bool _isBusy;
-    private bool _isAdding;
-    private string? _message;
-    private bool _hasError;
-    private string? _registerOutput;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<MachinesViewModel> _log = log;
 
-    public MachinesViewModel(ICrowdSecCliService cli, ILogger<MachinesViewModel> log) { _cli = cli; _log = log; }
+    public string NewMachine { get; private set => SetProperty(ref field, value); } = "";
+    public bool AutoValidate { get; private set => SetProperty(ref field, value); }
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsAdding { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public string? RegisterOutput { get; private set => SetProperty(ref field, value); }
 
-    public IReadOnlyList<CsMachine> Machines { get => _machines; private set => SetProperty(ref _machines, value); }
-    public string NewMachine { get => _newMachine; set => SetProperty(ref _newMachine, value); }
-    public bool AutoValidate { get => _autoValidate; set => SetProperty(ref _autoValidate, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsAdding { get => _isAdding; private set => SetProperty(ref _isAdding, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
-    public string? RegisterOutput { get => _registerOutput; private set => SetProperty(ref _registerOutput, value); }
+    public IReadOnlyList<CsMachine> Machines { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync() => RefreshAsync();
 

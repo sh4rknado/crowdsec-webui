@@ -4,30 +4,22 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class HubManagementViewModel : ViewModelBase
+public sealed class HubManagementViewModel(ICrowdSecCliService cli, ILogger<HubManagementViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<HubManagementViewModel> _log;
-    private IReadOnlyList<CsHubItem> _items = [];
-    private string _filter = "";
-    private string _searchQuery = "";
-    private bool _isBusy;
-    private bool _isBusyDiag;
-    private string? _message;
-    private bool _hasError;
-    private string? _diagnosticOutput;
-    private string _diagnosticTitle = "Output";
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<HubManagementViewModel> _log = log;
 
-    public HubManagementViewModel(ICrowdSecCliService cli, ILogger<HubManagementViewModel> log) { _cli = cli; _log = log; }
-    public IReadOnlyList<CsHubItem> Items { get => _items; private set => SetProperty(ref _items, value); }
-    public string Filter { get => _filter; set => SetProperty(ref _filter, value); }
-    public string SearchQuery { get => _searchQuery; set => SetProperty(ref _searchQuery, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsBusyDiag { get => _isBusyDiag; private set => SetProperty(ref _isBusyDiag, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
-    public string? DiagnosticOutput { get => _diagnosticOutput; private set => SetProperty(ref _diagnosticOutput, value); }
-    public string DiagnosticTitle { get => _diagnosticTitle; private set => SetProperty(ref _diagnosticTitle, value); }
+    public string Filter { get; set => SetProperty(ref field, value); } = "";
+    public string SearchQuery { get; set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsBusyDiag { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public string? DiagnosticOutput { get; private set => SetProperty(ref field, value); }
+    public string DiagnosticTitle { get; private set => SetProperty(ref field, value); } = "Output";
+
+    public IReadOnlyList<CsHubItem> Items { get; private set => SetProperty(ref field, value); } = [];
+
     public IEnumerable<CsHubItem> Filtered => string.IsNullOrWhiteSpace(Filter) ? Items : Items.Where(item =>
         (item.Name?.Contains(Filter, StringComparison.OrdinalIgnoreCase) ?? false) ||
         (item.Type?.Contains(Filter, StringComparison.OrdinalIgnoreCase) ?? false) ||

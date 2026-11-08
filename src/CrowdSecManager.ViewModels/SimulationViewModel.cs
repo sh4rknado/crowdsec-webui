@@ -4,26 +4,18 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class SimulationViewModel : ViewModelBase
+public sealed class SimulationViewModel(ICrowdSecCliService cli, ILogger<SimulationViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<SimulationViewModel> _log;
-    private CsSimulationStatus? _status;
-    private IReadOnlyList<CsSimulation> _simulations = [];
-    private string _newScenario = "";
-    private bool _isBusy;
-    private bool _isAdding;
-    private string? _message;
-    private bool _hasError;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<SimulationViewModel> _log = log;
 
-    public SimulationViewModel(ICrowdSecCliService cli, ILogger<SimulationViewModel> log) { _cli = cli; _log = log; }
-    public CsSimulationStatus? Status { get => _status; private set => SetProperty(ref _status, value); }
-    public IReadOnlyList<CsSimulation> Simulations { get => _simulations; private set => SetProperty(ref _simulations, value); }
-    public string NewScenario { get => _newScenario; set => SetProperty(ref _newScenario, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsAdding { get => _isAdding; private set => SetProperty(ref _isAdding, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
+    public CsSimulationStatus? Status { get; private set => SetProperty(ref field, value); }
+    public IReadOnlyList<CsSimulation> Simulations { get; private set => SetProperty(ref field, value); } = [];
+    public string NewScenario { get; private set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsAdding { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
 
     public override Task InitializeAsync() => RefreshAsync();
 

@@ -5,33 +5,22 @@ using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class BouncersViewModel : ViewModelBase
+public sealed class BouncersViewModel(ICrowdSecCliService cli, ILogger<BouncersViewModel> log) : ViewModelBase
 {
-    private readonly ICrowdSecCliService _cli;
-    private readonly ILogger<BouncersViewModel> _log;
-    private string _newName = "";
-    private string _newKey = "";
-    private IReadOnlyList<CsBouncer> _bouncers = [];
-    private bool _isBusy;
-    private bool _isAdding;
-    private string? _message;
-    private bool _hasError;
-    private string? _apiKey;
-    private string? _inspectOutput;
-    private string? _inspectName;
+    private readonly ICrowdSecCliService _cli = cli;
+    private readonly ILogger<BouncersViewModel> _log = log;
 
-    public BouncersViewModel(ICrowdSecCliService cli, ILogger<BouncersViewModel> log) { _cli = cli; _log = log; }
+    public string NewName { get; set => SetProperty(ref field, value); } = "";
+    public string NewKey { get; set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
+    public bool IsAdding { get; private set => SetProperty(ref field, value); }
+    public string? Message { get; private set => SetProperty(ref field, value); }
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public string? ApiKey { get; private set => SetProperty(ref field, value); }
+    public string? InspectOutput { get; private set => SetProperty(ref field, value); }
+    public string? InspectName { get; private set => SetProperty(ref field, value); }
 
-    public string NewName { get => _newName; set => SetProperty(ref _newName, value); }
-    public string NewKey { get => _newKey; set => SetProperty(ref _newKey, value); }
-    public IReadOnlyList<CsBouncer> Bouncers { get => _bouncers; private set => SetProperty(ref _bouncers, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool IsAdding { get => _isAdding; private set => SetProperty(ref _isAdding, value); }
-    public string? Message { get => _message; private set => SetProperty(ref _message, value); }
-    public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
-    public string? ApiKey { get => _apiKey; private set => SetProperty(ref _apiKey, value); }
-    public string? InspectOutput { get => _inspectOutput; private set => SetProperty(ref _inspectOutput, value); }
-    public string? InspectName { get => _inspectName; private set => SetProperty(ref _inspectName, value); }
+    public IReadOnlyList<CsBouncer> Bouncers { get; private set => SetProperty(ref field, value); } = [];
 
     public override Task InitializeAsync() => RefreshAsync();
 

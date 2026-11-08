@@ -5,36 +5,25 @@ using Microsoft.JSInterop;
 
 namespace CrowdSecManager.ViewModels;
 
-public sealed class ThreatMapViewModel : ViewModelBase, IAsyncDisposable, IAfterRenderViewModel, IUiDispatcherAware
+public sealed class ThreatMapViewModel(IJSRuntime js, IGeoIpService geo, IThreatMapEventBus events, ILogger<ThreatMapViewModel> log) : ViewModelBase, IAsyncDisposable, IAfterRenderViewModel, IUiDispatcherAware
 {
-    private readonly IJSRuntime _js;
-    private readonly IGeoIpService _geo;
-    private readonly IThreatMapEventBus _events;
-    private readonly ILogger<ThreatMapViewModel> _log;
+    private readonly IJSRuntime _js = js;
+    private readonly IGeoIpService _geo = geo;
+    private readonly IThreatMapEventBus _events = events;
+    private readonly ILogger<ThreatMapViewModel> _log = log;
     private readonly ThreatMapEventReplayBuffer _replayBuffer = new();
     private readonly HashSet<long> _recentAlertIds = [];
-    private ThreatMapStats _stats = new();
-    private IReadOnlyDictionary<string, int> _topCountries = new Dictionary<string, int>();
-    private IReadOnlyList<ThreatEvent> _recent = [];
     private bool _started;
     private bool _mapReady;
     private bool _subscribed;
     private Func<Func<Task>, Task> _dispatcher = action => action();
 
-    public ThreatMapViewModel(IJSRuntime js, IGeoIpService geo, IThreatMapEventBus events, ILogger<ThreatMapViewModel> log)
-    {
-        _js = js;
-        _geo = geo;
-        _events = events;
-        _log = log;
-    }
-
     public Task OnAfterRenderAsync(bool firstRender) => firstRender ? StartMapAsync() : Task.CompletedTask;
 
-    public ThreatMapStats Stats { get => _stats; private set => SetProperty(ref _stats, value); }
-    public IReadOnlyDictionary<string, int> TopCountries { get => _topCountries; private set => SetProperty(ref _topCountries, value); }
-    public IReadOnlyList<ThreatEvent> Recent { get => _recent; private set => SetProperty(ref _recent, value); }
-    public IReadOnlyList<ThreatEvent> VisibleRecent => Recent.Take(20).ToArray();
+    public ThreatMapStats Stats { get; private set => SetProperty(ref field, value); } = new();
+    public IReadOnlyDictionary<string, int> TopCountries { get; private set => SetProperty(ref field, value); } = new Dictionary<string, int>();
+    public IReadOnlyList<ThreatEvent> Recent { get; private set => SetProperty(ref field, value); } = [];
+    public IReadOnlyList<ThreatEvent> VisibleRecent => [.. Recent.Take(20)];
     public int TopCountryMaximum => TopCountries.Values.DefaultIfEmpty().Max();
     public int CountryPercentage(int value) => TopCountryMaximum == 0 ? 0 : 100 * value / TopCountryMaximum;
     public static string ScenarioName(string? scenario) => scenario?.Split('/').LastOrDefault() ?? "—";
@@ -108,14 +97,13 @@ public sealed class ThreatMapViewModel : ViewModelBase, IAsyncDisposable, IAfter
         Recent = new[] { threat }.Concat(Recent).Take(50).ToArray();
         RaiseComputedPropertyChanged(nameof(VisibleRecent));
         if (threat.Source?.Country is not { } country) return;
-        var updated = new Dictionary<string, int>(_topCountries)
+        var updated = new Dictionary<string, int>(TopCountries)
         {
-            [country] = _topCountries.GetValueOrDefault(country) + 1
+            [country] = TopCountries.GetValueOrDefault(country) + 1
         };
         if (updated.Count > 8)
             updated = updated.OrderByDescending(item => item.Value).Take(8).ToDictionary(item => item.Key, item => item.Value);
-        _topCountries = updated;
-        RaiseComputedPropertyChanged(nameof(TopCountries));
+        TopCountries = updated;
         RaiseComputedPropertyChanged(nameof(TopCountryMaximum));
     }
 
