@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using CrowdSecManager.Core.CommandLine;
 using CrowdSecManager.Core.Repositories;
-using CrowdsecManagerModel;
 using Microsoft.Extensions.Logging;
 
 namespace CrowdSecManager.ViewModels;
@@ -26,10 +25,8 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     private readonly ILogger<TerminalViewModel> _log;
 
     // Backing state
-    private readonly List<TerminalLine> _lines = new();
-    private readonly List<string> _history = new();
-    private string _input = "";
-    private bool _busy;
+    private readonly List<TerminalLine> _lines = [];
+    private readonly List<string> _history = [];
     private int _historyCursor = -1;   // -1 = not browsing history
     private CancellationTokenSource? _cts;
     private int _pendingCount;          // number of in-flight Execute calls (race guard)
@@ -59,14 +56,14 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
 
     public string Input
     {
-        get => _input;
-        set => SetProperty(ref _input, value ?? "");
-    }
+        get;
+        set => SetProperty(ref field, value ?? "");
+    } = "";
 
     public bool IsBusy
     {
-        get => _busy;
-        private set => SetProperty(ref _busy, value);
+        get;
+        private set => SetProperty(ref field, value);
     }
 
     public bool HasHistory => _history.Count > 0;
