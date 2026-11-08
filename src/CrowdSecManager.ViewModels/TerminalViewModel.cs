@@ -49,23 +49,16 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         private set
         {
             _lines.Clear();
-            if (value is not null) _lines.AddRange(value);
+
+            if (value is not null) 
+                _lines.AddRange(value);
+
             RaiseComputedPropertyChanged(nameof(Lines));
         }
     }
 
-    public string Input
-    {
-        get;
-        set => SetProperty(ref field, value ?? "");
-    } = "";
-
-    public bool IsBusy
-    {
-        get;
-        private set => SetProperty(ref field, value);
-    }
-
+    public string Input { get; set => SetProperty(ref field, value ?? ""); } = "";
+    public bool IsBusy { get; private set => SetProperty(ref field, value); }
     public bool HasHistory => _history.Count > 0;
 
     // ---- Commands ----
