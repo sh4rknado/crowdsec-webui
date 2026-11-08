@@ -9,17 +9,17 @@ public sealed class LapiViewModel(ICrowdSecCliService cli, ILogger<LapiViewModel
     private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
     private readonly ILogger<LapiViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
-    public string StatusOutput { get; private set => SetProperty(ref field, value); } = "";
-    public bool IsBusy { get; private set => SetProperty(ref field, value); }
-    public bool IsRegistering { get; private set => SetProperty(ref field, value); }
-    public bool IsLoadingContexts { get; private set => SetProperty(ref field, value); }
-    public string? Message { get; private set => SetProperty(ref field, value); }
-    public bool HasError { get; private set => SetProperty(ref field, value); }
-    public string RegisterMachine { get; private set => SetProperty(ref field, value); } = "";
-    public string RegisterUrl { get; private set => SetProperty(ref field, value); } = "";
-    public string RegisterToken { get; private set => SetProperty(ref field, value); } = "";
-    public string? RegisterOutput { get; private set => SetProperty(ref field, value); }
-    public string? ContextsOutput { get; private set => SetProperty(ref field, value); }
+    public string StatusOutput { get; set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; set => SetProperty(ref field, value); }
+    public bool IsRegistering { get; set => SetProperty(ref field, value); }
+    public bool IsLoadingContexts { get; set => SetProperty(ref field, value); }
+    public string? Message { get; set => SetProperty(ref field, value); }
+    public bool HasError { get; set => SetProperty(ref field, value); }
+    public string RegisterMachine { get; set => SetProperty(ref field, value); } = "";
+    public string RegisterUrl { get; set => SetProperty(ref field, value); } = "";
+    public string RegisterToken { get; set => SetProperty(ref field, value); } = "";
+    public string? RegisterOutput { get; set => SetProperty(ref field, value); }
+    public string? ContextsOutput { get; set => SetProperty(ref field, value); }
 
     public async Task RefreshAsync()
     {

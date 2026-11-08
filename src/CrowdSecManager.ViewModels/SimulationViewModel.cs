@@ -9,13 +9,13 @@ public sealed class SimulationViewModel(ICrowdSecCliService cli, ILogger<Simulat
     private readonly ICrowdSecCliService _cli = cli ?? throw new ArgumentNullException(nameof(cli));
     private readonly ILogger<SimulationViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
 
-    public CsSimulationStatus? Status { get; private set => SetProperty(ref field, value); }
-    public IReadOnlyList<CsSimulation> Simulations { get; private set => SetProperty(ref field, value); } = [];
-    public string NewScenario { get; private set => SetProperty(ref field, value); } = "";
-    public bool IsBusy { get; private set => SetProperty(ref field, value); }
-    public bool IsAdding { get; private set => SetProperty(ref field, value); }
-    public string? Message { get; private set => SetProperty(ref field, value); }
-    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public CsSimulationStatus? Status { get; set => SetProperty(ref field, value); }
+    public IReadOnlyList<CsSimulation> Simulations { get; set => SetProperty(ref field, value); } = [];
+    public string NewScenario { get; set => SetProperty(ref field, value); } = "";
+    public bool IsBusy { get; set => SetProperty(ref field, value); }
+    public bool IsAdding { get; set => SetProperty(ref field, value); }
+    public string? Message { get; set => SetProperty(ref field, value); }
+    public bool HasError { get; set => SetProperty(ref field, value); }
 
     public override Task InitializeAsync() => RefreshAsync();
 

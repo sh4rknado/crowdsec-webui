@@ -11,25 +11,25 @@ public sealed class NotificationsViewModel(ICrowdSecCliService cli, IConfigFileS
     private readonly ILogger<NotificationsViewModel> _log = log ?? throw new ArgumentNullException(nameof(log));
     private string _lastDefaultName = "slack_default";
 
-    public IReadOnlyList<CsNotification> Notifications { get; private set => SetProperty(ref field, value); } = Array.Empty<CsNotification>();
-    public bool IsBusy { get; private set => SetProperty(ref field, value); }
-    public string? Message { get; private set => SetProperty(ref field, value); }
-    public bool HasError { get; private set => SetProperty(ref field, value); }
-    public string? InspectOutput { get; private set => SetProperty(ref field, value); }
-    public string? InspectName { get; private set => SetProperty(ref field, value); }
-    public string Type { get; private set => SetProperty(ref field, value); } = "slack";
-    public string Name { get; private set => SetProperty(ref field, value); } = "slack_default";
-    public string Scope { get; private set => SetProperty(ref field, value); } = "all";
-    public bool Enabled { get; private set => SetProperty(ref field, value); } = true;
-    public string Webhook { get; private set => SetProperty(ref field, value); } = "";
-    public string Url { get; private set => SetProperty(ref field, value); } = "";
-    public string SmtpHost { get; private set => SetProperty(ref field, value); } = "";
-    public string SmtpPort { get; private set => SetProperty(ref field, value); } = "587";
-    public string SenderEmail { get; private set => SetProperty(ref field, value); } = "";
-    public string Recipients { get; private set => SetProperty(ref field, value); } = "";
-    public string SmtpUser { get; private set => SetProperty(ref field, value); } = "";
-    public string SmtpPassword { get; private set => SetProperty(ref field, value); } = "";
-    public string Encryption { get; private set => SetProperty(ref field, value); } = "starttls";
+    public IReadOnlyList<CsNotification> Notifications { get; set => SetProperty(ref field, value); } = Array.Empty<CsNotification>();
+    public bool IsBusy { get; set => SetProperty(ref field, value); }
+    public string? Message { get; set => SetProperty(ref field, value); }
+    public bool HasError { get; set => SetProperty(ref field, value); }
+    public string? InspectOutput { get; set => SetProperty(ref field, value); }
+    public string? InspectName { get; set => SetProperty(ref field, value); }
+    public string Type { get; set => SetProperty(ref field, value); } = "slack";
+    public string Name { get; set => SetProperty(ref field, value); } = "slack_default";
+    public string Scope { get; set => SetProperty(ref field, value); } = "all";
+    public bool Enabled { get; set => SetProperty(ref field, value); } = true;
+    public string Webhook { get; set => SetProperty(ref field, value); } = "";
+    public string Url { get; set => SetProperty(ref field, value); } = "";
+    public string SmtpHost { get; set => SetProperty(ref field, value); } = "";
+    public string SmtpPort { get; set => SetProperty(ref field, value); } = "587";
+    public string SenderEmail { get; set => SetProperty(ref field, value); } = "";
+    public string Recipients { get; set => SetProperty(ref field, value); } = "";
+    public string SmtpUser { get; set => SetProperty(ref field, value); } = "";
+    public string SmtpPassword { get; set => SetProperty(ref field, value); } = "";
+    public string Encryption { get; set => SetProperty(ref field, value); } = "starttls";
 
     public override Task InitializeAsync() => RefreshAsync();
 

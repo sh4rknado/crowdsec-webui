@@ -14,11 +14,11 @@ public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliServ
     public string Duration { get; set => SetProperty(ref field, value); } = "4h";
     public string Type { get; set => SetProperty(ref field, value); } = "ban";
     public string Reason { get; set => SetProperty(ref field, value); } = "Manual SOC decision";
-    public bool BypassAllowlist { get; private set => SetProperty(ref field, value); }
-    public bool IsAdding { get; private set => SetProperty(ref field, value); }
-    public bool IsDeletingAll { get; private set => SetProperty(ref field, value); }
-    public string? Message { get; private set => SetProperty(ref field, value); }
-    public bool HasError { get; private set => SetProperty(ref field, value); }
+    public bool BypassAllowlist { get; set => SetProperty(ref field, value); }
+    public bool IsAdding { get; set => SetProperty(ref field, value); }
+    public bool IsDeletingAll { get; set => SetProperty(ref field, value); }
+    public string? Message { get; set => SetProperty(ref field, value); }
+    public bool HasError { get; set => SetProperty(ref field, value); }
 
     public IReadOnlyList<CsDecision> Decisions { get; private set => SetProperty(ref field, value); } = [];
 
