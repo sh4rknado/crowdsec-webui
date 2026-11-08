@@ -7,6 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\CrowdSecManager.Core\CrowdSecManager.Core.csproj" />
     <ProjectReference Include="..\CrowdsecManagerModel\CrowdsecManagerModel.csproj" />
     <Compile Include="..\CrowdSecManager.ViewModels\TerminalLine.cs" Link="TerminalLine.cs" />
     <Compile Include="..\CrowdSecManager.ViewModels\TerminalViewModel.cs" Link="TerminalViewModel.cs" />

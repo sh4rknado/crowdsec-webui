@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.11.12328.437 stable
+VisualStudioVersion = 18.11.12328.437
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdSecManager", "CrowdSecManager\CrowdSecManager.csproj", "{7B5E1C9A-3F2D-4A1E-9C8B-1D2E3F4A5B6C}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdsecManagerModel", "CrowdsecManagerModel\CrowdsecManagerModel.csproj", "{92EC9822-3C96-4205-B128-6ECC74B1F88D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdsecManagerViewModel", "CrowdsecManagerViewModel\CrowdsecManagerViewModel.csproj", "{1C383C03-1990-4FA5-83F4-6AA934BA9B76}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowdSecManager.Core", "CrowdSecManager.Core\CrowdSecManager.Core.csproj", "{D50869D5-4089-4943-808A-D3D9B43DDFFF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,6 +71,18 @@ Global
 		{1C383C03-1990-4FA5-83F4-6AA934BA9B76}.Release|x64.Build.0 = Release|Any CPU
 		{1C383C03-1990-4FA5-83F4-6AA934BA9B76}.Release|x86.ActiveCfg = Release|Any CPU
 		{1C383C03-1990-4FA5-83F4-6AA934BA9B76}.Release|x86.Build.0 = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|x64.Build.0 = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Debug|x86.Build.0 = Debug|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x64.ActiveCfg = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x64.Build.0 = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x86.ActiveCfg = Release|Any CPU
+		{D50869D5-4089-4943-808A-D3D9B43DDFFF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
