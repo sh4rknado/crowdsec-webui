@@ -26,6 +26,9 @@ WORKDIR /src
 # Restore first for better layer caching
 COPY src/CrowdSecManager.sln ./CrowdSecManager.sln
 COPY src/CrowdSecManager/CrowdSecManager.csproj ./CrowdSecManager/CrowdSecManager.csproj
+COPY src/CrowdSecManager.Core/CrowdSecManager.Core.csproj ./CrowdSecManager.Core/CrowdSecManager.Core.csproj
+COPY src/CrowdsecManagerModel/CrowdsecManagerModel.csproj ./CrowdsecManagerModel/CrowdsecManagerModel.csproj
+COPY src/CrowdsecManagerViewModel/CrowdsecManagerViewModel.csproj ./CrowdsecManagerViewModel/CrowdsecManagerViewModel.csproj
 RUN dotnet restore ./CrowdSecManager/CrowdSecManager.csproj
 
 # Copy the rest of the source and publish
