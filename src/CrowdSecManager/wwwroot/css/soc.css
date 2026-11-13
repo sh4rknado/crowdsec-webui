@@ -599,6 +599,44 @@ table.data tbody tr:hover td {
 }
 
 /* ============= Threat map ============= */
+.advanced-view { min-width: 0; }
+.advanced-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.advanced-header h1 { font-size: 22px; }
+.advanced-header p { margin: 4px 0 0; }
+.advanced-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+}
+.advanced-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-mut);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.advanced-tab:hover, .advanced-tab:focus-visible { color: var(--text); outline: none; }
+.advanced-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.advanced-panel { min-width: 0; }
+.config-import-label { position: relative; overflow: hidden; }
+.config-import-label input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ============= Threat map ============= */
 .threatmap-wrap {
     display: grid;
     grid-template-columns: 1fr 320px;

@@ -27,7 +27,7 @@ Wants=network-online.target
 
 [Container]
 # Image - either built locally or pulled from a registry
-Image=localhost/crowdsec-manager:latest
+Image=docker.io/cobrakaii/crowdsec-dashboard:latest
 # If you prefer an inline build (Podman 4.7+):
 # Image=quadlet-crowdsec-manager
 # Build=.

@@ -14,7 +14,7 @@ set -euo pipefail
 QUADLET_SRC="$(cd "$(dirname "$0")" && pwd)/crowdsec-manager.container"
 QUADLET_DST="/etc/containers/systemd/crowdsec-manager.container"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE_NAME="localhost/crowdsec-manager:latest"
+IMAGE_NAME="docker.io/cobrakaii/crowdsec-dashboard:latest"
 
 BUILD=0
 [ "${1:-}" = "--build" ] && BUILD=1

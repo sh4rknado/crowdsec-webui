@@ -306,6 +306,79 @@ public sealed class ConfigFileService : IConfigFileService
         return Task.CompletedTask;
     }
 
+    public async Task<byte[]> ExportYamlZipAsync(CancellationToken ct = default)
+    {
+        await using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in ListConfigFiles())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!IsYamlPath(file.RelativePath) || !File.Exists(file.AbsolutePath)) continue;
+                var entry = archive.CreateEntry(file.RelativePath.Replace('\\', '/'), CompressionLevel.Optimal);
+                await using var entryStream = entry.Open();
+                await using var input = new FileStream(file.AbsolutePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                await input.CopyToAsync(entryStream, ct);
+            }
+        }
+        return output.ToArray();
+    }
+
+    public async Task<(bool Success, string? Error, int ImportedCount)> ImportYamlZipAsync(Stream archiveStream, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(archiveStream);
+        const int maxEntries = 500;
+        const long maxEntryBytes = 2 * 1024 * 1024;
+        const long maxTotalBytes = 25 * 1024 * 1024;
+        var pending = new List<(string Path, string Content)>();
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long totalBytes = 0;
+
+        try
+        {
+            using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read, leaveOpen: true);
+            if (archive.Entries.Count is 0 or > maxEntries)
+                return (false, $"The archive must contain between 1 and {maxEntries} files.", 0);
+
+            foreach (var entry in archive.Entries)
+            {
+                ct.ThrowIfCancellationRequested();
+                var path = entry.FullName.Replace('\\', '/');
+                if (string.IsNullOrEmpty(path) || path.EndsWith('/')) continue;
+                if (!IsYamlPath(path) || !IsAllowed(path))
+                    return (false, $"The archive contains a path that is not an editable CrowdSec YAML file: {path}", 0);
+                if (!paths.Add(path)) return (false, $"The archive contains a duplicate path: {path}", 0);
+                if (entry.Length > maxEntryBytes || (totalBytes += entry.Length) > maxTotalBytes)
+                    return (false, "The archive exceeds the allowed YAML size limits.", 0);
+
+                await using var input = entry.Open();
+                using var reader = new StreamReader(input, new System.Text.UTF8Encoding(false, true));
+                var content = await reader.ReadToEndAsync(ct);
+                if (System.Text.Encoding.UTF8.GetByteCount(content) > maxEntryBytes)
+                    return (false, $"The file {path} exceeds the allowed size limit.", 0);
+                var (valid, error) = ValidateYaml(content);
+                if (!valid) return (false, $"Invalid YAML in {path}: {error}", 0);
+                pending.Add((path, content));
+            }
+
+            if (pending.Count == 0) return (false, "The archive contains no YAML configuration files.", 0);
+
+            foreach (var (path, content) in pending)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (saved, error) = Save(path, content);
+                if (!saved) return (false, $"Could not import {path}: {error}", 0);
+            }
+            _log.LogInformation("Imported {Count} CrowdSec YAML configuration files", pending.Count);
+            return (true, null, pending.Count);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or System.Text.DecoderFallbackException or ArgumentException)
+        {
+            return (false, $"Could not read configuration archive: {ex.Message}", 0);
+        }
+    }
+
     private static bool IsYamlPath(string path)
         => string.Equals(Path.GetExtension(path), ".yaml", StringComparison.OrdinalIgnoreCase)
            || string.Equals(Path.GetExtension(path), ".yml", StringComparison.OrdinalIgnoreCase);

@@ -16,7 +16,7 @@ breaks if I touch X".
 | --- | --- |
 | Name | `crowdsec-manager` |
 | Type | Long-running system service (systemd unit, Podman Quadlet) |
-| Container image | `localhost/crowdsec-manager:latest` (built locally from `Dockerfile`) |
+| Container image | `docker.io/cobrakaii/crowdsec-dashboard:latest` (built locally from `Dockerfile`, then pushed to the registry) |
 | Base image | `crowdsecurity/crowdsec:latest` (Debian-based, ships `crowdsec` + `cscli`) |
 | App runtime | .NET 8.0 ASP.NET Core (Blazor Server) |
 | Process model | 1 container, 2 logical processes: (a) `crowdsec` daemon, (b) `dotnet CrowdSecManager.dll` |
@@ -318,7 +318,8 @@ system service (rootful) use case.
 ```bash
 cd /path/to/crowdsec-manager
 git pull
-sudo podman build --format docker -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker -t docker.io/cobrakaii/crowdsec-dashboard:latest -f Dockerfile .
+sudo podman push docker.io/cobrakaii/crowdsec-dashboard:latest
 sudo systemctl restart crowdsec-manager
 ```
 
@@ -332,7 +333,8 @@ release:
 
 ```bash
 sudo podman pull crowdsecurity/crowdsec:latest
-sudo podman build --format docker --no-cache -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker --no-cache -t docker.io/cobrakaii/crowdsec-dashboard:latest -f Dockerfile .
+sudo podman push docker.io/cobrakaii/crowdsec-dashboard:latest
 sudo systemctl restart crowdsec-manager
 
 # Then upgrade hub content from the UI (Hub & Collections → Update index → Upgrade all)

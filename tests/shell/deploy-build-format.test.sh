@@ -43,7 +43,7 @@ assert_contains 'podman build --format docker'
 assert_contains 'systemctl daemon-reload'
 assert_contains 'systemctl enable --now crowdsec-manager.service'
 
-if ! grep -Fq -- 'podman build --format docker --pull=always' "${repo_root}/deploy/update-image.sh"; then
+if ! grep -Fq -- 'podman build --network=host --format docker --pull=always --no-cache' "${repo_root}/deploy/update-image.sh"; then
     echo 'update-image.sh must preserve the image healthcheck with Docker format.' >&2
     exit 1
 fi

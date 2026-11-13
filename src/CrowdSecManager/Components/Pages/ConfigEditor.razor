@@ -1,6 +1,8 @@
 @page "/config"
 @attribute [Authorize]
 @inherits ViewModelComponentBase<ConfigEditorViewModel>
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Configuration &middot; CrowdSec Manager</PageTitle>
 
@@ -66,13 +68,17 @@
             <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowMergedAsync">Show merged config</button>
             <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowMergedYamlAsync">Show merged (YAML)</button>
             <button class="btn ghost" disabled="@Vm.IsBusyConfig" @onclick="Vm.ShowFeatureFlagsAsync">Feature flags</button>
-            <button class="btn" disabled="@Vm.IsBusyConfig" @onclick="Vm.BackupConfigAsync">Backup to tar</button>
+            <button class="btn" disabled="@Vm.IsBusyConfig" @onclick="ExportYamlZipAsync">Export YAML ZIP</button>
+            <label class="btn ghost config-import-label">
+                Import YAML ZIP
+                <InputFile OnChange="ImportYamlZipAsync" accept=".zip,application/zip" disabled="@Vm.IsBusyConfig" />
+            </label>
         </div>
     </header>
     <p class="muted small">
         <strong>Show merged config</strong> runs <code class="mono">cscli config show</code> which prints the
         fully-resolved configuration (after applying environment variables and <code>config.yaml.local</code>
-        overrides). <strong>Backup to tar</strong> runs <code class="mono">cscli config backup</code>.
+        overrides). ZIP export includes editable YAML files. Imports validate every file and path before writing.
     </p>
     @if (Vm.ConfigOutput is not null)
     {
@@ -82,3 +88,30 @@
         </details>
     }
 </section>
+
+@if (!string.IsNullOrEmpty(Vm.Message))
+{
+    <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div>
+}
+
+@code {
+    private async Task ExportYamlZipAsync()
+    {
+        var bytes = await Vm.ExportYamlZipAsync();
+        if (bytes.Length > 0)
+            await JS.InvokeVoidAsync("configTransfer.download", "crowdsec-config-yaml.zip", bytes);
+    }
+
+    private async Task ImportYamlZipAsync(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            await using var stream = args.File.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            await Vm.ImportYamlZipAsync(stream);
+        }
+        catch (Exception ex)
+        {
+            Vm.ReportImportError(ex.Message);
+        }
+    }
+}

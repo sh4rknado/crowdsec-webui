@@ -1,0 +1,46 @@
+@page "/advanced"
+@attribute [Authorize]
+@using CrowdSecManager.Components.Pages
+
+<PageTitle>Advanced · CrowdSec Manager</PageTitle>
+
+<section class="advanced-view">
+    <header class="advanced-header">
+        <div>
+            <h1>Advanced</h1>
+            <p class="muted">Configuration, alert delivery and diagnostic tools.</p>
+        </div>
+    </header>
+
+    <nav class="advanced-tabs" role="tablist" aria-label="Advanced">
+        @foreach (var tab in Tabs)
+        {
+            <button type="button" role="tab" id="tab-@tab.Key" aria-selected="@(ActiveTab == tab.Key)"
+                    aria-controls="panel-@tab.Key" class="advanced-tab @(ActiveTab == tab.Key ? "active" : "")"
+                    @onclick="() => ActiveTab = tab.Key">
+                <span aria-hidden="true">@tab.Icon</span> @tab.Label
+            </button>
+        }
+    </nav>
+
+    <div class="advanced-panel" role="tabpanel" id="panel-@ActiveTab" aria-labelledby="tab-@ActiveTab">
+        @switch (ActiveTab)
+        {
+            case "configuration": <ConfigEditor /> break;
+            case "notifications": <Notifications /> break;
+            case "terminal": <ConsolePage /> break;
+            default: <ExplainPage /> break;
+        }
+    </div>
+</section>
+
+@code {
+    private string ActiveTab { get; set; } = "configuration";
+    private static readonly (string Key, string Label, string Icon)[] Tabs =
+    [
+        ("configuration", "Configuration", "⚙"),
+        ("notifications", "Notifications", "✉"),
+        ("terminal", "Terminal", "⌘"),
+        ("explain", "Explain", "◇")
+    ];
+}

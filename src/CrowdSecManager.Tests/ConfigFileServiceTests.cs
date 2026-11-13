@@ -108,6 +108,68 @@ public sealed class ConfigFileServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportYamlZip_IncludesYamlFilesAndPreservesRelativePaths()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "acquis.d"));
+        File.WriteAllText(Path.Combine(_root, "config.yaml"), "common: {}\n");
+        File.WriteAllText(Path.Combine(_root, "acquis.d", "web.yml"), "source: file\n");
+        File.WriteAllText(Path.Combine(_root, "acquis.d", "readme.txt"), "skip");
+
+        var bytes = await _service.ExportYamlZipAsync();
+        using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+
+        Assert.Equal(new[] { "acquis.d/web.yml", "config.yaml" }, archive.Entries.Select(entry => entry.FullName).OrderBy(path => path).ToArray());
+    }
+
+    [Fact]
+    public async Task ImportYamlZip_ImportsValidFilesAndRejectsUnsafePaths()
+    {
+        using var archive = CreateZip(("profiles.yaml", "name: imported\n"), ("acquis.d/web.yaml", "source: file\n"));
+
+        var result = await _service.ImportYamlZipAsync(archive);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(2, result.ImportedCount);
+        Assert.Equal("name: imported\n", File.ReadAllText(Path.Combine(_root, "profiles.yaml")));
+        Assert.Equal("source: file\n", File.ReadAllText(Path.Combine(_root, "acquis.d", "web.yaml")));
+
+        using var unsafeArchive = CreateZip(("../secrets.yaml", "secret: value\n"));
+        var rejected = await _service.ImportYamlZipAsync(unsafeArchive);
+        Assert.False(rejected.Success);
+        Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(_root)!, "secrets.yaml")));
+    }
+
+    [Fact]
+    public async Task ImportYamlZip_ValidatesWholeArchiveBeforeWriting()
+    {
+        var existing = Path.Combine(_root, "profiles.yaml");
+        File.WriteAllText(existing, "name: original\n");
+        using var archive = CreateZip(("profiles.yaml", "name: replaced\n"), ("acquis.d/broken.yaml", "name: [broken\n"));
+
+        var result = await _service.ImportYamlZipAsync(archive);
+
+        Assert.False(result.Success);
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal("name: original\n", File.ReadAllText(existing));
+        Assert.False(File.Exists(Path.Combine(_root, "acquis.d", "broken.yaml")));
+    }
+
+    private static MemoryStream CreateZip(params (string Path, string Content)[] files)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (path, content) in files)
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(path).Open());
+                writer.Write(content);
+            }
+        }
+        stream.Position = 0;
+        return stream;
+    }
+
+    [Fact]
     public void Save_RejectsPathThroughSymlinkedDirectory()
     {
         var parsers = Path.Combine(_root, "parsers");

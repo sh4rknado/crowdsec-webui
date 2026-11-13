@@ -11,7 +11,7 @@
 #     the host (e.g. by an existing host CrowdSec).
 set -euo pipefail
 
-IMAGE_NAME="localhost/crowdsec-manager:latest"
+IMAGE_NAME="docker.io/cobrakaii/crowdsec-dashboard:latest"
 CONTAINER_NAME="crowdsec-manager"
 BUILD=0
 UI_PORT="${CROWDSEC_UI_PORT:-8081}"

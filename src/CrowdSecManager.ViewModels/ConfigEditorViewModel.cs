@@ -18,6 +18,12 @@ public sealed class ConfigEditorViewModel(IConfigFileService config, ICrowdSecCl
     public string Selected { get; private set => SetProperty(ref field, value); } = "";
     public string NewFilePath { get; set => SetProperty(ref field, value); } = "";
 
+    public void ReportImportError(string error)
+    {
+        HasError = true;
+        Message = $"Import failed: {error}";
+    }
+
     public ConfigFileInfo? Current { get; private set => SetProperty(ref field, value); }
     public IReadOnlyList<ConfigFileInfo> Files { get; private set => SetProperty(ref field, value); } = [];
 
@@ -134,6 +140,44 @@ public sealed class ConfigEditorViewModel(IConfigFileService config, ICrowdSecCl
             ConfigOutputTitle = "cscli config backup";
             ConfigOutput = FormatResult(result);
         }
+        finally { IsBusyConfig = false; }
+    }
+
+    public async Task<byte[]> ExportYamlZipAsync()
+    {
+        IsBusyConfig = true; Message = null;
+        try
+        {
+            var bytes = await _config.ExportYamlZipAsync();
+            HasError = false;
+            Message = $"YAML configuration exported ({FormatSize(bytes.LongLength)}).";
+            return bytes;
+        }
+        catch (Exception ex)
+        {
+            HasError = true; Message = $"Export failed: {ex.Message}";
+            return [];
+        }
+        finally { IsBusyConfig = false; }
+    }
+
+    public async Task ImportYamlZipAsync(Stream archiveStream)
+    {
+        IsBusyConfig = true; Message = null;
+        try
+        {
+            var (success, error, importedCount) = await _config.ImportYamlZipAsync(archiveStream);
+            HasError = !success;
+            Message = success
+                ? $"Imported {importedCount} YAML configuration file(s). Validate the configuration before reloading CrowdSec."
+                : error;
+            if (success)
+            {
+                Files = _config.ListConfigFiles();
+                if (Current is not null) await SelectAsync(Current.RelativePath);
+            }
+        }
+        catch (Exception ex) { HasError = true; Message = $"Import failed: {ex.Message}"; }
         finally { IsBusyConfig = false; }
     }
 

@@ -18,10 +18,16 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd)"
-image="localhost/crowdsec-manager:latest"
+image="docker.io/cobrakaii/crowdsec-dashboard:latest"
 
 echo "Rebuilding ${image} and refreshing the CrowdSec base image..."
-podman build --format docker --pull=always -t "${image}" -f "${repo_dir}/Dockerfile" "${repo_dir}"
+podman build --network=host --format docker --pull=always --no-cache -t "${image}" -f "${repo_dir}/Dockerfile" "${repo_dir}"
+
+echo "Verifying image healthcheck and GeoIP database..."
+podman image inspect "${image}" --format '{{json .Config.Healthcheck}}'
+podman run --rm --network=none --entrypoint /bin/ls "${image}" -lh /var/lib/GeoIP/GeoLite2-City.mmdb
+
+echo "Image is ready to push: podman push ${image}"
 
 echo "Restarting crowdsec-manager.service..."
 systemctl restart crowdsec-manager.service

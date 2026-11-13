@@ -152,7 +152,8 @@ crowdsec-manager/
 
 ```bash
 cd crowdsec-manager
-sudo podman build --format docker --pull=always -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker --pull=always -t docker.io/cobrakaii/crowdsec-dashboard:latest -f Dockerfile .
+sudo podman push docker.io/cobrakaii/crowdsec-dashboard:latest
 ```
 
 ### 2. Set the initial admin password
@@ -224,7 +225,7 @@ alternative to a `docker run` line. Highlights:
 
 | Directive | Value | Why |
 | --- | --- | --- |
-| `Image=localhost/crowdsec-manager:latest` | local image | built from the Dockerfile |
+| `Image=docker.io/cobrakaii/crowdsec-dashboard:latest` | registry image | built from the Dockerfile; push after building to publish updates |
 | `Network=host` | host network | so the manager's `cscli` and LAPI client can reach a host CrowdSec daemon |
 | `Volume=/etc/crowdsec:/etc/crowdsec:Z` | rw | YAML config editor + hub installs |
 | `Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z` | rw | CrowdSec SQLite DB |
@@ -255,7 +256,8 @@ sudo systemctl stop crowdsec-manager
 sudo systemctl start crowdsec-manager
 
 # Rebuild image after code change
-sudo podman build --format docker -t localhost/crowdsec-manager:latest -f Dockerfile .
+sudo podman build --format docker --pull=always -t docker.io/cobrakaii/crowdsec-dashboard:latest -f Dockerfile .
+sudo podman push docker.io/cobrakaii/crowdsec-dashboard:latest
 sudo systemctl restart crowdsec-manager
 
 # Update CrowdSec engine and manager from current source/base image
