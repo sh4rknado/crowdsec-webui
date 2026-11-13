@@ -26,13 +26,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-# Image - either built locally or pulled from a registry
-Image=docker.io/cobrakaii/crowdsec-dashboard:latest
-# If you prefer an inline build (Podman 4.7+):
-# Image=quadlet-crowdsec-manager
-# Build=.
-
-# Container name
+Image=cobrakaii/crowdsec-dashboard:latest
 ContainerName=crowdsec-manager
 
 # Run as root inside the container (cscli needs it)
@@ -48,18 +42,22 @@ Network=host
 # CrowdSec config (config.yaml, profiles.yaml, acquis.yaml, acquis.d/, hub/, ...)
 # Read-write so the UI can edit acquis.yaml and so cscli can install hub items.
 # This is what makes "add / modify acquisition.yaml" possible from the web UI.
-Volume=/etc/crowdsec:/etc/crowdsec:Z
+Volume=/opt/crowdsec/config:/etc/crowdsec:Z
 # CrowdSec database (SQLite)
-Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
+Volume=/opt/crowdsec/data:/var/lib/crowdsec:Z
 # Manager app database (users, threat history, bouncer key, backups)
-Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z
+Volume=/opt/crowdsec/dashboard:/var/lib/crowdsec-manager:Z
 # GeoIP: the GeoLite2-City.mmdb database is BAKED into the image (see the
 # Dockerfile COPY deploy/GeoLite2-City.mmdb). No host bind-mount is needed.
 # To override with a fresher DB, replace deploy/GeoLite2-City.mmdb and rebuild.
 # Host logs that CrowdSec should ingest (read-only).
 # Edit /etc/crowdsec/acquis.yaml (or drop a file in /etc/crowdsec/acquis.d/)
 # to point CrowdSec at log paths visible here, e.g. /var/log/nginx/access.log.
-Volume=/var/log:/var/log:ro,Z
+Volume=/var/log:/var/log:Z
+
+# Container access
+Volume=/run/podman/podman.sock:/var/run/docker.sock
+Volume=/run/podman/podman.sock:/run/podman/podman.sock
 
 # ---- Environment ----
 # Admin credentials (REQUIRED on first boot, then ignored)
@@ -84,7 +82,7 @@ Environment=Database__Path=/var/lib/crowdsec-manager/app.db
 # Single-container mode: bootstrap the CrowdSec engine inside this container.
 # Set NO_BOOTSTRAP_CROWDSEC=1 ONLY if you want to talk to a host CrowdSec instead.
 Environment=NO_BOOTSTRAP_CROWDSEC=0
-
+Environment=ADMIN_PASSWORD=Admin2026
 # Drop env file support (Quadlet 5.0+). Set secrets in:
 #   /etc/containers/systemd/crowdsec-manager.env
 #EnvironmentFile=/etc/containers/systemd/crowdsec-manager.env
