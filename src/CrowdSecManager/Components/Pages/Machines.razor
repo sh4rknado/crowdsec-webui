@@ -43,26 +43,37 @@
     }
     else
     {
+        <div class="table-scroll">
         <table class="data">
-            <thead><tr><th>Machine ID</th><th>IP</th><th>Version</th><th>Last push</th><th>Status</th><th>Validated</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>IP Address</th><th>Last Update</th><th>Status</th><th>Version</th><th>OS</th><th>Auth Type</th><th>Last Heartbeat</th><th>Features</th><th>Actions</th></tr></thead>
             <tbody>
                 @foreach (var m in Vm.Machines)
                 {
                     <tr>
                         <td class="mono">@m.MachineId</td>
                         <td class="mono">@m.IpAddress</td>
-                        <td>@m.Version</td>
-                        <td>@(m.LastPush?.ToLocalTime().ToString("u") ?? "—")</td>
-                        <td>@(m.Status ?? "—")</td>
+                        <td>@((m.LastUpdate ?? m.LastPush)?.ToLocalTime().ToString("u") ?? "—")</td>
                         <td>
-                            @if (m.IsValidated) { <span class="badge ok">validated</span> }
-                            else { <span class="badge warn">pending</span> }
+                            @if (m.IsValidated) { <span class="badge ok">@(m.Status ?? "validated")</span> }
+                            else { <span class="badge warn">@(m.Status ?? "pending")</span> }
                         </td>
-                        <td><button class="btn mini danger" @onclick="async () => await Vm.DeleteAsync(m.MachineId!)">Delete</button></td>
+                        <td>@(m.Version ?? "—")</td>
+                        <td>@(m.OperatingSystem ?? "—")</td>
+                        <td>@(m.AuthType ?? "—")</td>
+                        <td>@(m.LastHeartbeat?.ToLocalTime().ToString("u") ?? "—")</td>
+                        <td>@(m.Features is { Length: > 0 } ? string.Join(", ", m.Features) : "—")</td>
+                        <td class="actions">
+                            @if (!m.IsValidated)
+                            {
+                                <button class="btn mini primary" disabled="@Vm.IsBusy" @onclick="async () => await Vm.ValidateAsync(m.MachineId!)">Validate</button>
+                            }
+                            <button class="btn mini danger" disabled="@Vm.IsBusy" @onclick="async () => await Vm.DeleteAsync(m.MachineId!)">Delete</button>
+                        </td>
                     </tr>
                 }
             </tbody>
         </table>
+        </div>
     }
 </section>
 

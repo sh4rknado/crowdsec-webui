@@ -38,6 +38,7 @@ public interface ICrowdSecCliService
     Task<CliResult> ConsoleDisableAlertsAsync(CancellationToken ct = default);
     Task<CliResult> ListAllowlistsAsync(CancellationToken ct = default);
     Task<CliResult> RegisterMachineAsync(string? machineName = null, bool autoValidate = false, CancellationToken ct = default);
+    Task<CliResult> ValidateMachineAsync(string machineName, CancellationToken ct = default);
     Task<CliResult> DeleteMachineAsync(string machineName, CancellationToken ct = default);
     Task<CliResult> PruneMachinesAsync(CancellationToken ct = default);
     Task<CliResult> InspectBouncerAsync(string name, CancellationToken ct = default);

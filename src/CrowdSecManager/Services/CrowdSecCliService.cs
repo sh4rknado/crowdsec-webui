@@ -273,6 +273,9 @@ public sealed class CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<Cr
     public Task<CliResult> DeleteMachineAsync(string machineName, CancellationToken ct = default)
         => RunAsync(CrowdSecCommandBuilder.MachinesDelete(machineName), ct);
 
+    public Task<CliResult> ValidateMachineAsync(string machineName, CancellationToken ct = default)
+        => RunAsync(CrowdSecCommandBuilder.MachinesValidate(machineName), ct);
+
     public Task<CliResult> PruneMachinesAsync(CancellationToken ct = default)
         => RunAsync(CrowdSecCommandBuilder.MachinesPrune(), ct);
 

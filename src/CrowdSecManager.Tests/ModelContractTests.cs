@@ -131,7 +131,7 @@ public sealed class ModelContractTests
                 IpAddress = "127.0.0.1",
                 LastPush = date,
                 LatestConfig = date.AddMinutes(-5),
-                Version = 3,
+                Version = "v1.8.2-3d369d64-docker",
                 IsValidated = true,
                 Status = "validated"
             }

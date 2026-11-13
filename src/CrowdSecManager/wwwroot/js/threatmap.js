@@ -228,7 +228,13 @@
 
     // ---- Arcs ----
     function severityColor(sev, alpha) {
-        switch ((sev || "").toLowerCase()) {
+        const enumNames = ["info", "low", "medium", "high", "critical"];
+        const normalized = typeof sev === "string"
+            ? sev.toLowerCase()
+            : Number.isInteger(sev) && sev >= 0 && sev < enumNames.length
+                ? enumNames[sev]
+                : "";
+        switch (normalized) {
             case "critical": return "rgba(255, 60, 60, " + alpha + ")";
             case "high": return "rgba(255, 120, 80, " + alpha + ")";
             case "medium": return "rgba(255, 200, 60, " + alpha + ")";

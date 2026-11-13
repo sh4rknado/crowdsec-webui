@@ -47,10 +47,28 @@ public sealed class MachinesViewModel(ICrowdSecCliService cli, ILogger<MachinesV
 
     public async Task DeleteAsync(string machineId)
     {
-        var result = await _cli.DeleteMachineAsync(machineId);
-        HasError = !result.Success;
-        Message = result.Success ? $"Machine '{machineId}' deleted." : $"Failed: {result.FlattenError() ?? result.Stderr}";
-        await RefreshAsync();
+        IsBusy = true;
+        try
+        {
+            var result = await _cli.DeleteMachineAsync(machineId);
+            HasError = !result.Success;
+            Message = result.Success ? $"Machine '{machineId}' deleted." : $"Failed: {result.FlattenError() ?? result.Stderr}";
+            await RefreshAsync();
+        }
+        finally { IsBusy = false; }
+    }
+
+    public async Task ValidateAsync(string machineId)
+    {
+        IsBusy = true;
+        try
+        {
+            var result = await _cli.ValidateMachineAsync(machineId);
+            HasError = !result.Success;
+            Message = result.Success ? $"Machine '{machineId}' validated." : $"Failed: {result.FlattenError() ?? result.Stderr}";
+            await RefreshAsync();
+        }
+        finally { IsBusy = false; }
     }
 
     public async Task PruneAsync()

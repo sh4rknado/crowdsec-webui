@@ -65,12 +65,21 @@
                         <td class="num">@(a.Decisions?.Count ?? 0)</td>
                         <td>@AlertsViewModel.Truncate(a.Message, 80)</td>
                         <td>
-                            <button class="btn mini danger" @onclick="async () => await Vm.DeleteAsync(a.Id)">Delete</button>
+                            <div class="actions">
+                                <button class="btn mini" title="Add a 4-hour ban for this source"
+                                        disabled="@(!Vm.CanBan(a) || Vm.IsBanning)"
+                                        @onclick="async () => await Vm.BanAsync(a)">Ban 4h</button>
+                                <button class="btn mini danger" @onclick="async () => await Vm.DeleteAsync(a.Id)">Delete</button>
+                            </div>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
+    }
+    @if (!string.IsNullOrWhiteSpace(Vm.ActionMessage))
+    {
+        <div class="@(Vm.ActionHasError ? "err" : "ok") _msg" role="status">@Vm.ActionMessage</div>
     }
 </section>
 

@@ -79,6 +79,67 @@ public sealed class AlertsViewModelTests
         Assert.Equal(["alerts", "delete", "--id", "123"], command!);
     }
 
+    [Fact]
+    public async Task Ban_AddsFourHourDecisionForAlertSourceAndRefreshesAlerts()
+    {
+        object?[]? banArgs = null;
+        var refreshCount = 0;
+        var cli = ServiceProxy.Create<ICrowdSecCliService>((name, args) => name switch
+        {
+            "AddDecisionAsync" => CaptureArguments(args, value => banArgs = value),
+            "ListAlertsAsync" => CaptureAlertList(args, () => refreshCount++),
+            _ => throw new InvalidOperationException(name)
+        });
+        var alert = new CsAlert
+        {
+            Id = 12,
+            Scenario = "crowdsecurity/ssh-bf",
+            Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.12", Ip = "203.0.113.12" }
+        };
+        var vm = new AlertsViewModel(cli, NullLogger<AlertsViewModel>.Instance);
+
+        Assert.True(vm.CanBan(alert));
+        await vm.BanAsync(alert);
+
+        Assert.Equal("203.0.113.12", banArgs![0]);
+        Assert.Equal("4h", banArgs[1]);
+        Assert.Equal("crowdsecurity/ssh-bf", banArgs[2]);
+        Assert.Equal("ban", banArgs[3]);
+        Assert.False((bool)banArgs[4]!);
+        Assert.Equal(1, refreshCount);
+        Assert.False(vm.ActionHasError);
+        Assert.Contains("Ban added", vm.ActionMessage);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.12", "As", false)]
+    [InlineData("not-an-ip", "Ip", false)]
+    [InlineData("203.0.113.12/33", "Range", false)]
+    [InlineData("203.0.113.12/24", "Range", true)]
+    public void CanBan_RequiresAnValidIpOrRange(string? value, string? scope, bool expected)
+    {
+        var cli = ServiceProxy.Create<ICrowdSecCliService>((name, _) =>
+            throw new InvalidOperationException(name));
+        var vm = new AlertsViewModel(cli, NullLogger<AlertsViewModel>.Instance);
+
+        Assert.Equal(expected, vm.CanBan(new CsAlert
+        {
+            Source = new CsAlertSource { Scope = scope, Value = value }
+        }));
+    }
+
+    private static object CaptureArguments(object?[]? args, Action<object?[]> capture)
+    {
+        capture(args!);
+        return Task.FromResult(new CliResult());
+    }
+
+    private static object CaptureAlertList(object?[]? args, Action capture)
+    {
+        capture();
+        return Task.FromResult<IReadOnlyList<CsAlert>>([]);
+    }
+
     [Theory]
     [InlineData("abcdef", 3, "abc...")]
     [InlineData("abc", 3, "abc")]

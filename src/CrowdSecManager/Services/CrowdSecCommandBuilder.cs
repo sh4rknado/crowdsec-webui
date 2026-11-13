@@ -133,6 +133,9 @@ public static class CrowdSecCommandBuilder
     public static IReadOnlyList<string> MachinesDelete(string machineName)
         => new[] { "machines", "delete", machineName };
 
+    public static IReadOnlyList<string> MachinesValidate(string machineName)
+        => new[] { "machines", "validate", machineName };
+
     public static IReadOnlyList<string> MachinesPrune()
         => new[] { "machines", "prune" };
 
