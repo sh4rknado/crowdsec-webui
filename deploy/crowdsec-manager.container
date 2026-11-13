@@ -82,7 +82,6 @@ Environment=Database__Path=/var/lib/crowdsec-manager/app.db
 # Single-container mode: bootstrap the CrowdSec engine inside this container.
 # Set NO_BOOTSTRAP_CROWDSEC=1 ONLY if you want to talk to a host CrowdSec instead.
 Environment=NO_BOOTSTRAP_CROWDSEC=0
-Environment=ADMIN_PASSWORD=Admin2026
 # Drop env file support (Quadlet 5.0+). Set secrets in:
 #   /etc/containers/systemd/crowdsec-manager.env
 #EnvironmentFile=/etc/containers/systemd/crowdsec-manager.env

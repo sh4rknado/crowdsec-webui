@@ -59,6 +59,7 @@ builder.Services.AddTransient<CrowdSecManager.ViewModels.LapiViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ConfigEditorViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ThreatMapViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.NotificationsViewModel>();
+builder.Services.AddScoped<IAppBackupService, AppBackupService>();
 
 // ---- SignalR (used by the live threat map) ----
 builder.Services.AddSignalR(o =>
@@ -88,6 +89,12 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", ts = DateTimeOffset.UtcNow }));
+app.MapGet("/api/backup", async (HttpContext context, IAppBackupService backup, CancellationToken ct) =>
+{
+    context.Response.ContentType = "application/zip";
+    context.Response.Headers.ContentDisposition = $"attachment; filename=\"crowdsec-manager-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip\"";
+    await backup.WriteBackupAsync(context.Response.Body, ct);
+}).RequireAuthorization();
 app.MapRazorComponents<CrowdSecManager.Components.App>()
     .AddInteractiveServerRenderMode();
 app.MapRazorPages();

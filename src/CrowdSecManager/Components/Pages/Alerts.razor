@@ -60,7 +60,7 @@
                         <td class="num">@a.Id</td>
                         <td>@(a.CreatedAt == default ? "—" : a.CreatedAt.ToLocalTime().ToString("u"))</td>
                         <td title="@a.Scenario">@(AlertsViewModel.Truncate(a.Scenario, 50))</td>
-                        <td class="mono">@a.Source</td>
+                        <td class="mono">@(a.Source is null ? "—" : $"{a.Source.Scope}:{a.Source.Value}")</td>
                         <td class="num">@a.EventsCount</td>
                         <td class="num">@(a.Decisions?.Count ?? 0)</td>
                         <td>@AlertsViewModel.Truncate(a.Message, 80)</td>

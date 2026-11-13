@@ -1,0 +1,78 @@
+@using Microsoft.AspNetCore.Components.Forms
+@inject IAppBackupService BackupService
+
+<section class="card backup-card">
+    <header>
+        <div>
+            <h2>Full application backup</h2>
+            <p class="muted">Download or restore CrowdSec configuration, engine data, manager database and persistent application files.</p>
+        </div>
+    </header>
+    <p class="warn _msg">The archive contains sensitive configuration and credentials. Store it securely.</p>
+
+    <div class="actions">
+        <a class="btn primary" href="/api/backup">Download backup ZIP</a>
+    </div>
+
+    <hr />
+
+    <h3>Restore from backup</h3>
+    <p class="muted">Restoring replaces files with matching paths and replaces the manager database. Extra local files are retained. Create a backup first if you may need to undo this restore.</p>
+    <label class="config-import-label btn ghost">
+        Select backup ZIP
+        <InputFile OnChange="SelectFile" accept=".zip,application/zip" disabled="@_busy" />
+    </label>
+    @if (_selectedFile is not null)
+    {
+        <div class="actions">
+            <span class="muted">@_selectedFile.Name</span>
+            <button class="btn danger" @onclick="RestoreAsync" disabled="@_busy">Restore selected backup</button>
+        </div>
+    }
+    @if (_busy)
+    {
+        <p class="muted">Restoring backup…</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="@(_hasError ? "err" : "ok") _msg" role="status">@_message</p>
+    }
+</section>
+
+@code {
+    private const long MaxUploadBytes = 2L * 1024 * 1024 * 1024;
+    private bool _busy;
+    private bool _hasError;
+    private string? _message;
+    private IBrowserFile? _selectedFile;
+
+    private void SelectFile(InputFileChangeEventArgs args)
+    {
+        _selectedFile = args.File;
+        _message = null;
+        _hasError = false;
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (_selectedFile is null) return;
+        _busy = true;
+        _message = null;
+        _hasError = false;
+        try
+        {
+            await using var stream = _selectedFile.OpenReadStream(MaxUploadBytes);
+            await BackupService.RestoreAsync(stream);
+            _message = "Backup restored. Refresh the application to load the restored state.";
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _message = $"Restore failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

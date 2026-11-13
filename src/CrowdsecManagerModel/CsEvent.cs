@@ -1,9 +1,10 @@
 namespace CrowdsecManagerModel;
 
+using System.Text.Json.Serialization;
+
 public sealed class CsEvent
 {
-    public long Timestamp { get; set; }
+    public string? Timestamp { get; set; }
     public string? Type { get; set; }
-    public string? Source { get; set; }
-    public Dictionary<string, object?>? Meta { get; set; }
+    public List<CsMeta>? Meta { get; set; }
 }

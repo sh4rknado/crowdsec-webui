@@ -189,9 +189,10 @@ public sealed class ThreatFeedService : BackgroundService
 
     private static string? ExtractSourceIp(CsAlert a)
     {
-        // cscli/LAPI expose source either as the alert.Source string or in Meta / Events
-        if (!string.IsNullOrWhiteSpace(a.Source) && IPAddressString(a.Source!))
-            return a.Source!.Split('/')[0];
+        if (!string.IsNullOrWhiteSpace(a.Source?.Ip) && IPAddressString(a.Source.Ip))
+            return a.Source.Ip.Split('/')[0];
+        if (!string.IsNullOrWhiteSpace(a.Source?.Value) && IPAddressString(a.Source.Value))
+            return a.Source.Value.Split('/')[0];
 
         if (a.Meta is { Count: > 0 })
         {
@@ -207,10 +208,11 @@ public sealed class ThreatFeedService : BackgroundService
             foreach (var e in a.Events)
             {
                 if (e.Meta is null) continue;
-                if (e.Meta.TryGetValue("source_ip", out var v1) && v1 is string s1 && IPAddressString(s1))
-                    return s1.Split('/')[0];
-                if (e.Meta.TryGetValue("src_ip", out var v2) && v2 is string s2 && IPAddressString(s2))
-                    return s2.Split('/')[0];
+                var sourceIp = e.Meta.FirstOrDefault(m =>
+                    string.Equals(m.Key, "source_ip", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(m.Key, "src_ip", StringComparison.OrdinalIgnoreCase))?.Value;
+                if (!string.IsNullOrWhiteSpace(sourceIp) && IPAddressString(sourceIp))
+                    return sourceIp.Split('/')[0];
             }
         }
         return null;

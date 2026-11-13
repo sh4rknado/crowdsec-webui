@@ -45,7 +45,7 @@ public sealed class ModelContractTests
             new CsAlert
             {
                 Id = 42,
-                Source = "crowdsec",
+                Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.1", Ip = "203.0.113.1" },
                 CreatedAt = date,
                 Until = date.AddHours(1),
                 Scenario = "http-probing",
@@ -56,7 +56,7 @@ public sealed class ModelContractTests
                 EventsCount = 2,
                 StartAt = "2026-04-12T09:00:00Z",
                 StopAt = "2026-04-12T09:30:00Z",
-                Events = [new CsEvent { Timestamp = 123, Type = "http", Source = "203.0.113.1" }],
+                Events = [new CsEvent { Timestamp = "2026-04-12T09:00:00Z", Type = "http" }],
                 Decisions = [new CsDecision { Id = 7, Type = "ban" }],
                 Meta = [new CsMeta { Key = "country", Value = "BE" }]
             }
@@ -100,10 +100,9 @@ public sealed class ModelContractTests
         {
             new CsEvent
             {
-                Timestamp = 123456,
+                Timestamp = "2026-04-12T09:00:00Z",
                 Type = "http",
-                Source = "203.0.113.1",
-                Meta = new Dictionary<string, object?> { ["country"] = "BE", ["count"] = 2 }
+                Meta = [new CsMeta { Key = "country", Value = "BE" }, new CsMeta { Key = "count", Value = "2" }]
             }
         };
         yield return new object[]

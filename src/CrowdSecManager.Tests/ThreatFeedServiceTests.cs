@@ -23,7 +23,7 @@ public sealed class ThreatFeedServiceTests
         await connection.OpenAsync();
         var alerts = new[]
         {
-            new CsAlert { Id = 77, Source = "203.0.113.77", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+            new CsAlert { Id = 77, Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.77", Ip = "203.0.113.77" }, Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
         };
         var cliDecisions = new[] { new CsDecision { Id = 5 } };
         var apiDecisions = new[] { new CsDecision { Id = 8 } };
@@ -77,7 +77,7 @@ public sealed class ThreatFeedServiceTests
         await connection.OpenAsync();
         var alerts = new[]
         {
-            new CsAlert { Id = 79, Source = "203.0.113.79", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+            new CsAlert { Id = 79, Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.79", Ip = "203.0.113.79" }, Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
         };
         var cli = CreateCliProxy(alerts, Array.Empty<CsDecision>(), out var cliState);
         var services = new ServiceCollection();
@@ -122,7 +122,7 @@ public sealed class ThreatFeedServiceTests
         var alerts = Enumerable.Range(1, 25).Select(i => new CsAlert
         {
             Id = i,
-            Source = $"203.0.113.{i}",
+            Source = new CsAlertSource { Scope = "Ip", Value = $"203.0.113.{i}", Ip = $"203.0.113.{i}" },
             Scenario = "crowdsecurity/ssh-bf",
             CreatedAt = DateTime.UtcNow.AddMinutes(-i)
         }).ToList();
@@ -194,7 +194,7 @@ public sealed class ThreatFeedServiceTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ProcessBatchAsync(new[]
         {
-            new CsAlert { Id = 81, Source = "203.0.113.81", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+            new CsAlert { Id = 81, Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.81", Ip = "203.0.113.81" }, Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
         }, Array.Empty<CsDecision>(), db, cancellation.Token));
     }
 
@@ -215,7 +215,7 @@ public sealed class ThreatFeedServiceTests
         var service = CreateService(provider, bus);
         var alerts = new[]
         {
-            new CsAlert { Id = 82, Source = "203.0.113.82", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+            new CsAlert { Id = 82, Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.82", Ip = "203.0.113.82" }, Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
         };
 
         await service.ProcessBatchAsync(alerts, Array.Empty<CsDecision>(), db);
@@ -252,7 +252,7 @@ public sealed class ThreatFeedServiceTests
 
         await service.ProcessBatchAsync(new[]
         {
-            new CsAlert { Id = 101, Source = "203.0.113.101", Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
+            new CsAlert { Id = 101, Source = new CsAlertSource { Scope = "Ip", Value = "203.0.113.101", Ip = "203.0.113.101" }, Scenario = "crowdsecurity/ssh-bf", CreatedAt = DateTime.UtcNow }
         }, Array.Empty<CsDecision>(), db);
 
         Assert.Equal(1, await db.ThreatHistory.CountAsync());
