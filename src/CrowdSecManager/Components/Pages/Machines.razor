@@ -1,12 +1,36 @@
 @page "/machines"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Administrator")]
 @inherits ViewModelComponentBase<MachinesViewModel>
+@inject IWindowsClientProvisioningService WindowsClientSetup
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <PageTitle>Machines &middot; CrowdSec Manager</PageTitle>
 
 <section class="card">
+    <header><h2>Install a Windows client</h2></header>
+    <p class="muted">Generate a per-machine installer script. It installs CrowdSec, registers this machine with the container LAPI, and starts the Windows service.</p>
+    <div class="form-row">
+        <label>Windows machine name
+            <input type="text" @bind="WindowsMachineName" placeholder="WIN-DESKTOP-01" autocomplete="off" />
+        </label>
+        <label>Container LAPI URL reachable from Windows
+            <input type="text" @bind="WindowsLapiUrl" placeholder="http://10.10.0.100:8080" autocomplete="url" />
+        </label>
+        <button class="btn primary" disabled="@IsWindowsSetupBusy" @onclick="DownloadWindowsSetupAsync">
+            @(IsWindowsSetupBusy ? "Preparing…" : "Create and download script")
+        </button>
+    </div>
+    <p class="muted">Use the server's LAN/VPN address, not 127.0.0.1. The LAPI must accept connections on that interface and the firewall must allow its port. Run the downloaded PowerShell script as Administrator.</p>
+    <p class="muted">The script contains this machine's LAPI credential. Keep it private and remove it after installation. Delete the machine below to revoke its credential.</p>
+    @if (WindowsSetupMessage is not null)
+    {
+        <div class="@(WindowsSetupError ? "err" : "ok") _msg">@WindowsSetupMessage</div>
+    }
+</section>
+
+<section class="card">
     <header>
-        <h2>Register a new machine</h2>
+        <h2>Register a machine manually</h2>
         <div class="actions">
             <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.PruneAsync">Prune expired</button>
         </div>
@@ -76,4 +100,41 @@
         </div>
     }
 </section>
+
+@code {
+    private string WindowsMachineName { get; set; } = "";
+    private string WindowsLapiUrl { get; set; } = "";
+    private bool IsWindowsSetupBusy { get; set; }
+    private bool WindowsSetupError { get; set; }
+    private string? WindowsSetupMessage { get; set; }
+
+    private async Task DownloadWindowsSetupAsync()
+    {
+        IsWindowsSetupBusy = true;
+        WindowsSetupMessage = null;
+        try
+        {
+            var result = await WindowsClientSetup.CreateSetupScriptAsync(WindowsMachineName, WindowsLapiUrl);
+            if (!result.Success || result.Script is null)
+            {
+                WindowsSetupError = true;
+                WindowsSetupMessage = result.Error ?? "Could not create the Windows setup script.";
+                return;
+            }
+
+            var bytes = System.Text.Encoding.UTF8.GetBytes(result.Script);
+            await JS.InvokeVoidAsync("configTransfer.downloadText", result.FileName, bytes);
+            WindowsSetupError = false;
+            WindowsSetupMessage = $"Script downloaded. Machine '{WindowsMachineName.Trim()}' is registered in the container LAPI; run the script on that Windows PC as Administrator.";
+            WindowsMachineName = "";
+            await Vm.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            WindowsSetupError = true;
+            WindowsSetupMessage = $"Windows client setup failed: {ex.Message}";
+        }
+        finally { IsWindowsSetupBusy = false; }
+    }
+}
 

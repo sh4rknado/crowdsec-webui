@@ -136,6 +136,9 @@ public static class CrowdSecCommandBuilder
     public static IReadOnlyList<string> MachinesValidate(string machineName)
         => new[] { "machines", "validate", machineName };
 
+    public static IReadOnlyList<string> MachinesAddClient(string machineName, string lapiUrl)
+        => new[] { "machines", "add", machineName, "--auto", "--url", lapiUrl, "--file", "-" };
+
     public static IReadOnlyList<string> MachinesPrune()
         => new[] { "machines", "prune" };
 

@@ -60,6 +60,7 @@ builder.Services.AddTransient<CrowdSecManager.ViewModels.ConfigEditorViewModel>(
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ThreatMapViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.NotificationsViewModel>();
 builder.Services.AddScoped<IAppBackupService, AppBackupService>();
+builder.Services.AddScoped<IWindowsClientProvisioningService, WindowsClientProvisioningService>();
 
 // ---- SignalR (used by the live threat map) ----
 builder.Services.AddSignalR(o =>

@@ -9,6 +9,7 @@
             <span class="user-name">@_userName</span>
             <span class="user-role">@_role</span>
         </div>
+        <a href="/account" class="account-manage-link">Account</a>
         <div class="avatar">@(_initials)</div>
     </div>
 </header>
@@ -69,6 +70,7 @@
                 "advanced" => "Advanced tools",
                 "connectors" => "Connectors",
                 "login" => "Sign in",
+                "account" => "Admin account",
                 _ => "CrowdSec Manager"
             };
         } catch { return "CrowdSec Manager"; }

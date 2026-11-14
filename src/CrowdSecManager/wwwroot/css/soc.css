@@ -192,6 +192,11 @@ a:hover { color: var(--accent-2); text-decoration: underline; }
     letter-spacing: 0.08em;
 }
 
+.account-manage-link {
+    color: var(--text-mut);
+    font-size: 12px;
+}
+
 .avatar {
     width: 32px; height: 32px;
     border-radius: 50%;

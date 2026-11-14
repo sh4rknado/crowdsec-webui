@@ -1,0 +1,89 @@
+@page "/account"
+@attribute [Authorize(Roles = "Administrator")]
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@inject AuthenticationStateProvider AuthenticationState
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+
+<PageTitle>Admin account · CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header><h2>Administrator account</h2></header>
+    <p class="muted">Change the password for the account currently signed in.</p>
+    <EditForm Model="_form" OnValidSubmit="ChangePasswordAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-row">
+            <label>Current password
+                <InputText type="password" @bind-Value="_form.CurrentPassword" autocomplete="current-password" />
+            </label>
+            <label>New password
+                <InputText type="password" @bind-Value="_form.NewPassword" autocomplete="new-password" />
+            </label>
+            <label>Confirm new password
+                <InputText type="password" @bind-Value="_form.ConfirmPassword" autocomplete="new-password" />
+            </label>
+        </div>
+        <p class="muted">Use at least 10 characters, including an uppercase letter, a number and a symbol.</p>
+        <button class="btn primary" type="submit" disabled="@_isBusy">@(_isBusy ? "Changing…" : "Change password")</button>
+    </EditForm>
+    @if (_message is not null)
+    {
+        <div class="@(_hasError ? "err" : "ok") _msg">@_message</div>
+    }
+</section>
+
+@code {
+    private readonly ChangePasswordForm _form = new();
+    private bool _isBusy;
+    private bool _hasError;
+    private string? _message;
+
+    private async Task ChangePasswordAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        try
+        {
+            var principal = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+            var user = await UserManager.GetUserAsync(principal);
+            if (user is null)
+            {
+                _hasError = true;
+                _message = "The signed-in administrator could not be found.";
+                return;
+            }
+
+            var result = await UserManager.ChangePasswordAsync(user, _form.CurrentPassword, _form.NewPassword);
+            if (!result.Succeeded)
+            {
+                _hasError = true;
+                _message = string.Join(" ", result.Errors.Select(error => error.Description));
+                return;
+            }
+
+            await SignInManager.RefreshSignInAsync(user);
+            _form.CurrentPassword = "";
+            _form.NewPassword = "";
+            _form.ConfirmPassword = "";
+            _hasError = false;
+            _message = "Administrator password changed successfully.";
+        }
+        finally { _isBusy = false; }
+    }
+
+    private sealed class ChangePasswordForm
+    {
+        [Required(ErrorMessage = "Enter your current password.")]
+        public string CurrentPassword { get; set; } = "";
+
+        [Required(ErrorMessage = "Enter a new password.")]
+        [StringLength(100, MinimumLength = 10, ErrorMessage = "The new password must be at least 10 characters.")]
+        public string NewPassword { get; set; } = "";
+
+        [Required(ErrorMessage = "Confirm the new password.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "The password confirmation does not match.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

@@ -1,5 +1,5 @@
 @page "/connectors"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Administrator")]
 @using CrowdSecManager.Components.Pages
 
 <PageTitle>Connectors · CrowdSec Manager</PageTitle>
