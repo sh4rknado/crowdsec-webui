@@ -148,7 +148,9 @@ public static class CrowdSecCommandBuilder
         => new[] { "bouncers", "inspect", name };
 
     public static IReadOnlyList<string> BouncersPrune()
-        => new[] { "bouncers", "prune" };
+        // The UI confirms this destructive action before calling cscli, so skip
+        // cscli's interactive prompt (which has no stdin in the web process).
+        => new[] { "bouncers", "prune", "--force" };
 
     /// <summary>Build "cscli bouncers add NAME [--key KEY]".
     /// The bouncer name is a required positional argument (cscli uses args.ExactArgs(1)).

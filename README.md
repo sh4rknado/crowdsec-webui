@@ -22,7 +22,7 @@ a single `systemctl start`.
 | **Alerts** | Browse the last N alerts with scenario, source, event count, decision count and message. Delete individual alerts. |
 | **Hub & Collections** | Run `cscli hub update` / `hub upgrade`, install/remove individual collections, parsers, scenarios, postoverflows, AppSec rules and contexts. Filter by name/type. See local vs latest version and taint state. |
 | **Explain** | Test the log pipeline against a single log line or a log file with `cscli explain --log/--file --type`. Useful to validate that a parser chain works before deploying it. |
-| **Bouncers** | Register new bouncers (returns the one-shot API key, or use a pre-shared key with `--key`), list active bouncers with last-pull / pulls / status, inspect a bouncer's resolved configuration, revoke, and prune revoked bouncers in bulk. |
+| **Bouncers** | Register new bouncers (returns the one-shot API key, or use a pre-shared key with `--key`), list active bouncers with last-pull / pulls / status, inspect a bouncer's resolved configuration, revoke, and permanently prune bouncers inactive for more than 60 minutes. |
 | **Machines** | List CrowdSec machines registered against this Local API with version, last push, validated state. Register new machines (`--auto` optional), delete by ID, prune expired machines. |
 | **LAPI** | Show Local API status (`cscli lapi status`), register a machine against a remote LAPI (`cscli lapi register --machine/--url/--token`), and list LAPI contexts (`cscli lapi context list`). |
 | **Simulation** | Toggle global simulation mode (`cscli simulation enable/disable`) and manage per-scenario simulation entries (`add`/`remove`/`list`). Useful to dry-run new scenarios without enforcing bans. |
@@ -340,8 +340,9 @@ sudo podman exec -it crowdsec-manager bash
    once below the form - copy it into your bouncer's config.
 5. The list shows every registered bouncer with its last pull time and
    status. Use **Inspect** to see the bouncer's resolved configuration,
-   **Revoke** to delete it, or **Prune revoked** to bulk-delete all revoked
-   bouncers.
+   **Revoke** to delete it, or **Prune inactive** to permanently remove
+   bouncers that have not pulled decisions for more than 60 minutes. The app
+   asks for confirmation before pruning.
 
 ### Machines
 

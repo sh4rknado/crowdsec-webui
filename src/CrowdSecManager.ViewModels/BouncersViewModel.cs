@@ -79,7 +79,7 @@ public sealed class BouncersViewModel(ICrowdSecCliService cli, ILogger<BouncersV
         {
             var result = await _cli.PruneBouncersAsync();
             HasError = !result.Success;
-            Message = result.Success ? "Pruned revoked bouncers." : $"Failed: {result.FlattenError() ?? result.Stderr}";
+            Message = result.Success ? "Pruned inactive bouncers." : $"Failed: {result.FlattenError() ?? result.Stderr}";
             await RefreshAsync();
         }
         finally { IsBusy = false; }

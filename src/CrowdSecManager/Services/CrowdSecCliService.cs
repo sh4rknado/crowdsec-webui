@@ -39,7 +39,11 @@ public sealed class CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<Cr
 
         // Always request JSON output for parseable commands
         var hasFormat = argv.Any(a => a == "-o" || a == "--output");
-        var knownJsonCmd = argv.Length > 0 && JsonCommands.Contains(argv[0]);
+        var isPruneCommand = argv.Length > 1
+            && argv[1].Equals("prune", StringComparison.OrdinalIgnoreCase)
+            && (argv[0].Equals("bouncers", StringComparison.OrdinalIgnoreCase)
+                || argv[0].Equals("machines", StringComparison.OrdinalIgnoreCase));
+        var knownJsonCmd = argv.Length > 0 && JsonCommands.Contains(argv[0]) && !isPruneCommand;
         if (knownJsonCmd && !hasFormat)
         {
             psi.ArgumentList.Add("-o");

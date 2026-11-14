@@ -1,5 +1,6 @@
 @page "/bouncers"
 @attribute [Authorize]
+@inject IJSRuntime JS
 @inherits ViewModelComponentBase<BouncersViewModel>
 
 <PageTitle>Bouncers &middot; CrowdSec Manager</PageTitle>
@@ -34,7 +35,7 @@
         <h2>Registered bouncers (@Vm.Bouncers.Count)</h2>
         <div class="actions">
             <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.RefreshAsync">Refresh</button>
-            <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.PruneAsync">Prune revoked</button>
+            <button class="btn" disabled="@Vm.IsBusy" @onclick="ConfirmPruneAsync">Prune inactive</button>
         </div>
     </header>
     @if (Vm.InspectOutput is not null)
@@ -77,4 +78,14 @@
         </table>
     }
 </section>
+
+@code {
+    private async Task ConfirmPruneAsync()
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            "Permanently delete bouncers that have not pulled decisions for more than 60 minutes?");
+        if (confirmed)
+            await Vm.PruneAsync();
+    }
+}
 
