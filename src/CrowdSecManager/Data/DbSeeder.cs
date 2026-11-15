@@ -15,17 +15,21 @@ public static class DbSeeder
         var cfg = sp.GetRequiredService<IConfiguration>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
-        const string AdminRole = "Administrator";
-        if (!await roleMgr.RoleExistsAsync(AdminRole))
+        string[] DefaultRoles = ["Administrator", "Operator", "Viewer"];
+        foreach (var roleName in DefaultRoles)
         {
-            var createRole = await roleMgr.CreateAsync(new IdentityRole(AdminRole));
-            if (!createRole.Succeeded)
+            if (!await roleMgr.RoleExistsAsync(roleName))
             {
-                var errors = string.Join(", ", createRole.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Could not create the Administrator role: {errors}");
+                var createRole = await roleMgr.CreateAsync(new IdentityRole(roleName));
+                if (!createRole.Succeeded)
+                {
+                    var errors = string.Join(", ", createRole.Errors.Select(e => e.Description));
+                    throw new InvalidOperationException($"Could not create the {roleName} role: {errors}");
+                }
             }
         }
 
+        const string AdminRole = "Administrator";
         var adminUser = cfg["ADMIN_USER"] ?? "admin";
         var existing = await userMgr.FindByNameAsync(adminUser);
         if (existing is null)

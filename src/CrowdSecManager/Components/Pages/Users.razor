@@ -1,0 +1,269 @@
+@page "/users"
+@attribute [Authorize(Roles = "Administrator")]
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Users &middot; CrowdSec Manager</PageTitle>
+
+<section class="card">
+    <header>
+        <h2>User management</h2>
+        <div class="actions">
+            <button class="btn ghost" disabled="@_busy" @onclick="LoadAsync">Refresh</button>
+        </div>
+    </header>
+    <p class="muted small">Manage access to CrowdSec Manager. Administrators can create accounts, assign roles, and remove users.</p>
+
+    @if (_users.Count == 0)
+    {
+        <p class="muted">No users found.</p>
+    }
+    else
+    {
+        <table class="data">
+            <thead>
+                <tr><th>User</th><th>Email</th><th>Role</th><th>Last login</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td><strong>@(user.DisplayName ?? user.UserName)</strong><br /><span class="muted small mono">@user.UserName</span></td>
+                        <td>@user.Email</td>
+                        <td>
+                            <select class="notification-select" value="@user.SelectedRole" @onchange="e => ChangeRoleAsync(user, e.Value?.ToString())" disabled="@(_busy || IsCurrentUser(user))">
+                                @foreach (var role in _roles)
+                                {
+                                    <option value="@role">@role</option>
+                                }
+                            </select>
+                        </td>
+                        <td>@(user.LastLoginUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                        <td>
+                            @if (IsCurrentUser(user))
+                            {
+                                <span class="badge ok">current user</span>
+                            }
+                            else
+                            {
+                                <button class="btn mini danger" disabled="@_busy" @onclick="() => DeleteAsync(user)">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<section class="card">
+    <header><h2>Create user</h2></header>
+    <p class="muted small">The password must meet the ASP.NET Core Identity policy: at least 10 characters, including an uppercase letter, a digit, and a special character.</p>
+    <div class="form-row">
+        <label for="newUserName">Username
+            <input id="newUserName" type="text" @bind="_newUserName" autocomplete="off" placeholder="operator" />
+        </label>
+        <label for="newEmail">Email
+            <input id="newEmail" type="email" @bind="_newEmail" autocomplete="off" placeholder="operator@example.com" />
+        </label>
+    </div>
+    <div class="form-row">
+        <label for="newDisplayName">Display name (optional)
+            <input id="newDisplayName" type="text" @bind="_newDisplayName" placeholder="Operations team" />
+        </label>
+        <label for="newRole">Role
+            <select id="newRole" class="notification-select" @bind="_newRole">
+                @foreach (var role in _roles)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </label>
+    </div>
+    <div class="form-row">
+        <label for="newPassword">Temporary password
+            <input id="newPassword" type="password" @bind="_newPassword" autocomplete="new-password" />
+        </label>
+    </div>
+    <div class="actions">
+        <button class="btn primary" disabled="@_busy" @onclick="CreateAsync">@(_busy ? "Working..." : "Create user")</button>
+    </div>
+
+    @if (_message is not null)
+    {
+        <div class="@(_hasError ? "err" : "ok")" role="status">@_message</div>
+    }
+</section>
+
+<section class="card">
+    <header><h2>Roles</h2></header>
+    <div class="muted small">
+        <ul>
+            <li><strong>Administrator</strong> — full access, including user management.</li>
+            <li><strong>Operator</strong> — access to CrowdSec operations and configuration.</li>
+            <li><strong>Viewer</strong> — read-only access to the dashboard and monitoring pages.</li>
+        </ul>
+    </div>
+</section>
+
+@code {
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private RoleManager<IdentityRole> RoleManager { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationState { get; set; } = default!;
+
+    private static readonly string[] DefaultRoles = ["Administrator", "Operator", "Viewer"];
+    private readonly List<UserRow> _users = [];
+    private readonly List<string> _roles = [];
+    private string? _currentUserName;
+    private string _newUserName = "";
+    private string _newEmail = "";
+    private string _newDisplayName = "";
+    private string _newPassword = "";
+    private string _newRole = "Operator";
+    private string? _message;
+    private bool _hasError;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationState.GetAuthenticationStateAsync();
+        _currentUserName = state.User.Identity?.Name;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            foreach (var role in DefaultRoles)
+            {
+                if (!await RoleManager.RoleExistsAsync(role))
+                    await RoleManager.CreateAsync(new IdentityRole(role));
+            }
+
+            _roles.Clear();
+            _roles.AddRange(DefaultRoles);
+            _users.Clear();
+            var users = await UserManager.Users.OrderBy(u => u.UserName).ToListAsync();
+            foreach (var user in users)
+            {
+                var roles = await UserManager.GetRolesAsync(user);
+                _users.Add(new UserRow(user, roles.FirstOrDefault() ?? "Viewer"));
+            }
+
+            if (!_roles.Contains(_newRole))
+                _newRole = _roles[0];
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _message = null;
+        _hasError = false;
+        _busy = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_newUserName) || string.IsNullOrWhiteSpace(_newPassword))
+            {
+                SetError("Username and password are required.");
+                return;
+            }
+
+            var user = new ApplicationUser
+            {
+                UserName = _newUserName.Trim(),
+                Email = string.IsNullOrWhiteSpace(_newEmail) ? _newUserName.Trim() : _newEmail.Trim(),
+                EmailConfirmed = true,
+                DisplayName = string.IsNullOrWhiteSpace(_newDisplayName) ? null : _newDisplayName.Trim(),
+                SecurityStamp = Guid.NewGuid().ToString("N")
+            };
+            var result = await UserManager.CreateAsync(user, _newPassword);
+            if (!result.Succeeded)
+            {
+                SetError(string.Join(" ", result.Errors.Select(e => e.Description)));
+                return;
+            }
+
+            await UserManager.AddToRoleAsync(user, _newRole);
+            _newUserName = _newEmail = _newDisplayName = _newPassword = "";
+            _message = $"User '{user.UserName}' created with the '{_newRole}' role.";
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ChangeRoleAsync(UserRow row, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role) || role == row.SelectedRole || IsCurrentUser(row)) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await UserManager.RemoveFromRolesAsync(row.User, await UserManager.GetRolesAsync(row.User));
+            if (!result.Succeeded)
+            {
+                SetError(string.Join(" ", result.Errors.Select(e => e.Description)));
+                return;
+            }
+            result = await UserManager.AddToRoleAsync(row.User, role);
+            if (!result.Succeeded)
+            {
+                SetError(string.Join(" ", result.Errors.Select(e => e.Description)));
+                return;
+            }
+            _message = $"Role for '{row.User.UserName}' changed to '{role}'.";
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(UserRow row)
+    {
+        if (IsCurrentUser(row)) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await UserManager.DeleteAsync(row.User);
+            if (!result.Succeeded)
+            {
+                SetError(string.Join(" ", result.Errors.Select(e => e.Description)));
+                return;
+            }
+            _message = $"User '{row.User.UserName}' deleted.";
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private bool IsCurrentUser(UserRow row) => string.Equals(row.User.UserName, _currentUserName, StringComparison.OrdinalIgnoreCase);
+
+    private void SetError(string message)
+    {
+        _hasError = true;
+        _message = message;
+    }
+
+    private sealed class UserRow(ApplicationUser user, string selectedRole)
+    {
+        public ApplicationUser User { get; } = user;
+        public string? DisplayName => User.DisplayName;
+        public string? UserName => User.UserName;
+        public string? Email => User.Email;
+        public DateTime? LastLoginUtc => User.LastLoginUtc;
+        public string SelectedRole { get; set; } = selectedRole;
+    }
+}
