@@ -168,14 +168,14 @@ public sealed class ConfigEditorViewModel(IConfigFileService config, ICrowdSecCl
         {
             var (success, error, importedCount) = await _config.ImportYamlZipAsync(archiveStream);
             HasError = !success;
-            Message = success
-                ? $"Imported {importedCount} YAML configuration file(s). Validate the configuration before reloading CrowdSec."
-                : error;
             if (success)
             {
                 Files = _config.ListConfigFiles();
                 if (Current is not null) await SelectAsync(Current.RelativePath);
             }
+            Message = success
+                ? $"Imported {importedCount} YAML configuration file(s). Validate the configuration before reloading CrowdSec."
+                : error;
         }
         catch (Exception ex) { HasError = true; Message = $"Import failed: {ex.Message}"; }
         finally { IsBusyConfig = false; }

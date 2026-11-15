@@ -38,7 +38,7 @@
                 <button class="btn primary" disabled="@Vm.IsBusy" @onclick="Vm.Save">Save</button>
                 <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ValidateWithCrowdSecAsync">Test CrowdSec config</button>
                 <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ApplyToCrowdSecAsync">Apply / reload CrowdSec</button>
-                <button class="btn" disabled="@Vm.IsBusy" @onclick="Vm.ReloadAsync">Reload</button>
+                <button class="btn" disabled="@Vm.IsBusy" @onclick="ConfirmReloadAsync">Reload</button>
             </div>
         </header>
 
@@ -95,6 +95,17 @@
 }
 
 @code {
+    private async Task ConfirmReloadAsync()
+    {
+        if (Vm.Current is not null && Vm.Draft != Vm.Current.Content)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", "Discard unsaved changes and reload this file from disk?");
+            if (!confirmed) return;
+        }
+
+        await Vm.ReloadAsync();
+    }
+
     private async Task ExportYamlZipAsync()
     {
         var bytes = await Vm.ExportYamlZipAsync();

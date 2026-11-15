@@ -262,7 +262,7 @@ public sealed class BouncersViewModelTests
         Assert.Contains("denied", vm.Message);
         await vm.PruneAsync();
         Assert.False(vm.HasError);
-        Assert.Equal("Pruned revoked bouncers.", vm.Message);
+        Assert.Equal("Pruned inactive bouncers.", vm.Message);
         Assert.False(vm.IsBusy);
         Assert.Equal(["ListBouncersAsync", "DeleteBouncerAsync", "ListBouncersAsync", "PruneBouncersAsync", "ListBouncersAsync"], calls);
     }
@@ -270,6 +270,51 @@ public sealed class BouncersViewModelTests
 
 public sealed class ConfigEditorViewModelTests
 {
+    [Fact]
+    public async Task ImportYamlZip_RefreshesFilesAndSelectedDraftOnSuccess()
+    {
+        var previous = new ConfigFileInfo { RelativePath = "config.yaml", Content = "old: true" };
+        var imported = new ConfigFileInfo { RelativePath = "config.yaml", Content = "new: true" };
+        var listCalls = 0;
+        var config = ServiceProxy.Create<IConfigFileService>((name, _) => name switch
+        {
+            "ListConfigFiles" => ++listCalls == 1 ? new[] { previous } : new[] { imported },
+            "Load" => imported,
+            "ImportYamlZipAsync" => Task.FromResult((true, (string?)null, 1)),
+            _ => throw new InvalidOperationException(name)
+        });
+        var vm = new ConfigEditorViewModel(config, ServiceProxy.Create<ICrowdSecCliService>((_, _) => throw new InvalidOperationException()));
+        await vm.InitializeAsync();
+        await vm.SelectAsync("config.yaml");
+        vm.Draft = "unsaved: true";
+
+        await vm.ImportYamlZipAsync(new MemoryStream());
+
+        Assert.Equal("new: true", vm.Draft);
+        Assert.Same(imported, vm.Current);
+        Assert.Single(vm.Files);
+        Assert.Contains("Imported 1 YAML", vm.Message);
+        Assert.False(vm.HasError);
+        Assert.False(vm.IsBusyConfig);
+    }
+
+    [Fact]
+    public async Task ImportYamlZip_ReportsFailureAndResetsBusyState()
+    {
+        var config = ServiceProxy.Create<IConfigFileService>((name, _) => name switch
+        {
+            "ImportYamlZipAsync" => Task.FromResult((false, (string?)"unsafe archive", 0)),
+            _ => throw new InvalidOperationException(name)
+        });
+        var vm = new ConfigEditorViewModel(config, ServiceProxy.Create<ICrowdSecCliService>((_, _) => throw new InvalidOperationException()));
+
+        await vm.ImportYamlZipAsync(new MemoryStream());
+
+        Assert.True(vm.HasError);
+        Assert.Equal("unsafe archive", vm.Message);
+        Assert.False(vm.IsBusyConfig);
+    }
+
     [Fact]
     public async Task InitializeSelectValidateAndSave_UsesSelectedFile()
     {
@@ -805,6 +850,64 @@ public sealed class LapiViewModelTests
     {
         capture(args!);
         return Task.FromResult(new CliResult { Stdout = "registered" });
+    }
+}
+
+public sealed class CrowdSecConsoleViewModelTests
+{
+    [Fact]
+    public async Task Initialize_LoadsConsoleStatus()
+    {
+        var cli = ServiceProxy.Create<ICrowdSecCliService>((name, _) => name == "ConsoleStatusAsync"
+            ? Task.FromResult(new CliResult { Stdout = "alerts: disabled" })
+            : throw new InvalidOperationException(name));
+        var vm = new CrowdSecConsoleViewModel(cli, NullLogger<CrowdSecConsoleViewModel>.Instance);
+
+        await vm.InitializeAsync();
+
+        Assert.Equal("alerts: disabled", vm.StatusOutput);
+        Assert.False(vm.HasError);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task EnableAlerts_RefreshesStatusAndReportsSuccess()
+    {
+        var calls = new List<string>();
+        var cli = ServiceProxy.Create<ICrowdSecCliService>((name, _) =>
+        {
+            calls.Add(name);
+            return name switch
+            {
+                "ConsoleEnableAlertsAsync" => Task.FromResult(new CliResult()),
+                "ConsoleStatusAsync" => Task.FromResult(new CliResult { Stdout = "alerts: enabled" }),
+                _ => throw new InvalidOperationException(name)
+            };
+        });
+        var vm = new CrowdSecConsoleViewModel(cli, NullLogger<CrowdSecConsoleViewModel>.Instance);
+
+        await vm.EnableAlertsAsync();
+
+        Assert.Equal("Alert sharing enabled.", vm.Message);
+        Assert.Equal("alerts: enabled", vm.StatusOutput);
+        Assert.False(vm.HasError);
+        Assert.False(vm.IsBusy);
+        Assert.Equal(["ConsoleEnableAlertsAsync", "ConsoleStatusAsync"], calls);
+    }
+
+    [Fact]
+    public async Task DisableAlerts_ReportsFailureWithoutRefreshingStatus()
+    {
+        var cli = ServiceProxy.Create<ICrowdSecCliService>((name, _) => name == "ConsoleDisableAlertsAsync"
+            ? Task.FromResult(new CliResult { ExitCode = 1, Stderr = "not enrolled" })
+            : throw new InvalidOperationException(name));
+        var vm = new CrowdSecConsoleViewModel(cli, NullLogger<CrowdSecConsoleViewModel>.Instance);
+
+        await vm.DisableAlertsAsync();
+
+        Assert.True(vm.HasError);
+        Assert.Contains("not enrolled", vm.Message);
+        Assert.False(vm.IsBusy);
     }
 }
 

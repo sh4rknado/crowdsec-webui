@@ -1,0 +1,36 @@
+@attribute [Authorize(Roles = "Administrator")]
+@inherits ViewModelComponentBase<CrowdSecConsoleViewModel>
+
+<AuthorizeView Roles="Administrator">
+    <Authorized>
+        <section class="card">
+            <header>
+                <h2>CrowdSec Console</h2>
+                <div class="actions">
+                    <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.RefreshAsync">Refresh status</button>
+                </div>
+            </header>
+            <p class="muted small">
+                Check this engine's Central API registration and choose whether new alerts are shared with your CrowdSec Console account.
+            </p>
+            <div class="form-row">
+                <button class="btn primary" disabled="@Vm.IsBusy" @onclick="Vm.EnableAlertsAsync">Enable alert sharing</button>
+                <button class="btn danger" disabled="@Vm.IsBusy" @onclick="Vm.DisableAlertsAsync">Disable alert sharing</button>
+            </div>
+            @if (Vm.Message is not null)
+            {
+                <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Vm.StatusOutput))
+            {
+                <details class="raw" open>
+                    <summary>cscli console status</summary>
+                    <pre class="mono">@Vm.StatusOutput</pre>
+                </details>
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="err _msg">Administrator role required to manage CrowdSec Console alert sharing.</div>
+    </NotAuthorized>
+</AuthorizeView>

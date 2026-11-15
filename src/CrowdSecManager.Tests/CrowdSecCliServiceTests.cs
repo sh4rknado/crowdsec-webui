@@ -49,6 +49,34 @@ public sealed class CrowdSecCliServiceTests
     }
 
     [Fact]
+    public async Task PruneBouncers_UsesForceWithoutAppendingJsonOutput()
+    {
+        var runner = new RecordingProcessRunner("");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions { CliPath = "fake-cscli", ConfigDir = "" }),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        await service.PruneBouncersAsync();
+
+        Assert.Equal(new[] { "bouncers", "prune", "--duration", "1h", "--force" }, runner.Arguments);
+    }
+
+    [Fact]
+    public async Task PruneMachines_UsesForceAndTenMinuteThresholdWithoutJsonOutput()
+    {
+        var runner = new RecordingProcessRunner("");
+        var service = new CrowdSecCliService(
+            Options.Create(new CrowdSecOptions { CliPath = "fake-cscli", ConfigDir = "" }),
+            NullLogger<CrowdSecCliService>.Instance,
+            runner);
+
+        await service.PruneMachinesAsync();
+
+        Assert.Equal(new[] { "machines", "prune", "--duration", "10m", "--force" }, runner.Arguments);
+    }
+
+    [Fact]
     public async Task ProcessRunner_ReturnsStructuredFailureWhenExecutableIsMissing()
     {
         var result = await new CrowdSecProcessRunner().ExecuteAsync(
@@ -56,6 +84,36 @@ public sealed class CrowdSecCliServiceTests
 
         Assert.False(result.Success);
         Assert.Contains("Failed to start cscli", result.Stderr);
+    }
+
+    [Fact]
+    public async Task ProcessRunner_CapturesStandardOutputAndStandardError()
+    {
+        var result = await new CrowdSecProcessRunner().ExecuteAsync(ShortOutputProcess(), 5);
+
+        Assert.True(result.Success);
+        Assert.Equal("stdout", result.Stdout.Trim());
+        Assert.Equal("stderr", result.Stderr.Trim());
+    }
+
+    [Fact]
+    public async Task ProcessRunner_KillsChildWhenCommandTimesOut()
+    {
+        var result = await new CrowdSecProcessRunner().ExecuteAsync(LongRunningProcess(), 1);
+
+        Assert.False(result.Success);
+        Assert.Equal("cscli timed out.", result.Stderr);
+    }
+
+    [Fact]
+    public async Task ProcessRunner_KillsChildWhenCallerCancels()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var result = await new CrowdSecProcessRunner().ExecuteAsync(LongRunningProcess(), 30, cancellation.Token);
+
+        Assert.False(result.Success);
+        Assert.Equal("cscli command cancelled.", result.Stderr);
     }
 
     [Fact]
@@ -174,4 +232,34 @@ public sealed class CrowdSecCliServiceTests
             return Task.FromResult(new CliResult { ExitCode = exitCode, Stdout = stdout, Stderr = stderr });
         }
     }
+
+    private static ProcessStartInfo ShortOutputProcess()
+    {
+        var startInfo = ShellProcessStartInfo();
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows() ? "/c" : "-c");
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows()
+            ? "echo stdout & echo stderr 1>&2"
+            : "printf stdout; printf stderr >&2");
+        return startInfo;
+    }
+
+    private static ProcessStartInfo LongRunningProcess()
+    {
+        var startInfo = ShellProcessStartInfo();
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows() ? "/c" : "-c");
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows()
+            ? "ping -n 30 127.0.0.1 > nul"
+            : "sleep 30");
+        return startInfo;
+    }
+
+    private static ProcessStartInfo ShellProcessStartInfo()
+        => new()
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
 }

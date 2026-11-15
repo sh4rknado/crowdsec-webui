@@ -56,6 +56,7 @@ builder.Services.AddTransient<CrowdSecManager.ViewModels.SimulationViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.HubManagementViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ExplainViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.LapiViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.CrowdSecConsoleViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ConfigEditorViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ThreatMapViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.NotificationsViewModel>();

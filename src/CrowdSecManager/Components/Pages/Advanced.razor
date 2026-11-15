@@ -29,6 +29,7 @@
             case "configuration": <ConfigEditor /> break;
             case "notifications": <Notifications /> break;
             case "terminal": <ConsolePage /> break;
+            case "crowdsec-console": <CrowdSecConsole /> break;
             case "backup": <BackupPage /> break;
             default: <ExplainPage /> break;
         }
@@ -41,6 +42,7 @@
     [
         ("configuration", "Configuration", "⚙"),
         ("notifications", "Notifications", "✉"),
+        ("crowdsec-console", "CrowdSec Console", "☁"),
         ("terminal", "Terminal", "⌘"),
         ("explain", "Explain", "◇"),
         ("backup", "Backup", "▣")

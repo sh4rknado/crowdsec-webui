@@ -1,7 +1,6 @@
 @page "/account"
 @attribute [Authorize(Roles = "Administrator")]
 @using Microsoft.AspNetCore.Components.Forms
-@using System.ComponentModel.DataAnnotations
 @inject AuthenticationStateProvider AuthenticationState
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -35,7 +34,7 @@
 </section>
 
 @code {
-    private readonly ChangePasswordForm _form = new();
+    private readonly AccountPasswordChangeForm _form = new();
     private bool _isBusy;
     private bool _hasError;
     private string? _message;
@@ -71,19 +70,5 @@
             _message = "Administrator password changed successfully.";
         }
         finally { _isBusy = false; }
-    }
-
-    private sealed class ChangePasswordForm
-    {
-        [Required(ErrorMessage = "Enter your current password.")]
-        public string CurrentPassword { get; set; } = "";
-
-        [Required(ErrorMessage = "Enter a new password.")]
-        [StringLength(100, MinimumLength = 10, ErrorMessage = "The new password must be at least 10 characters.")]
-        public string NewPassword { get; set; } = "";
-
-        [Required(ErrorMessage = "Confirm the new password.")]
-        [Compare(nameof(NewPassword), ErrorMessage = "The password confirmation does not match.")]
-        public string ConfirmPassword { get; set; } = "";
     }
 }

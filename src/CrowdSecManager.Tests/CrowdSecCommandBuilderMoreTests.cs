@@ -46,9 +46,9 @@ public sealed class CrowdSecCommandBuilderMoreTests
     }
 
     [Fact]
-    public void MachinesPrune_HasNoExtraArgs()
+    public void MachinesPrune_UsesTenMinuteThresholdWithoutPrompt()
     {
-        Assert.Equal(new[] { "machines", "prune" }, CrowdSecCommandBuilder.MachinesPrune());
+        Assert.Equal(new[] { "machines", "prune", "--duration", "10m", "--force" }, CrowdSecCommandBuilder.MachinesPrune());
     }
 
     // ---- Bouncers ----
@@ -61,9 +61,9 @@ public sealed class CrowdSecCommandBuilderMoreTests
     }
 
     [Fact]
-    public void BouncersPrune_HasNoExtraArgs()
+    public void BouncersPrune_SkipsInteractiveConfirmation()
     {
-        Assert.Equal(new[] { "bouncers", "prune" }, CrowdSecCommandBuilder.BouncersPrune());
+        Assert.Equal(new[] { "bouncers", "prune", "--duration", "1h", "--force" }, CrowdSecCommandBuilder.BouncersPrune());
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 using CrowdSecManager.Areas.Identity.Data;
 using CrowdSecManager.Data;
+using CrowdSecManager.ViewModels;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +13,34 @@ namespace CrowdSecManager.Tests;
 
 public sealed class IdentityAndPersistenceTests
 {
+    [Fact]
+    public void AccountPasswordChangeForm_ValidatesRequiredLengthAndConfirmation()
+    {
+        static IReadOnlyList<ValidationResult> Validate(AccountPasswordChangeForm model)
+        {
+            var results = new List<ValidationResult>();
+            Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true);
+            return results;
+        }
+
+        var valid = new AccountPasswordChangeForm
+        {
+            CurrentPassword = "Current!Pass2026",
+            NewPassword = "New!Password2026",
+            ConfirmPassword = "New!Password2026"
+        };
+        Assert.Empty(Validate(valid));
+
+        valid.NewPassword = "short";
+        valid.ConfirmPassword = "different";
+        var errors = Validate(valid);
+        Assert.Contains(errors, error => error.MemberNames.Contains(nameof(AccountPasswordChangeForm.NewPassword)));
+        Assert.Contains(errors, error => error.MemberNames.Contains(nameof(AccountPasswordChangeForm.ConfirmPassword)));
+
+        valid.CurrentPassword = "";
+        Assert.Contains(Validate(valid), error => error.MemberNames.Contains(nameof(AccountPasswordChangeForm.CurrentPassword)));
+    }
+
     [Fact]
     public async Task DbSeeder_RefusesFirstBootWithoutAdminPassword()
     {
@@ -112,5 +142,39 @@ public sealed class IdentityAndPersistenceTests
             Assert.Equal(1, await db.Users.CountAsync());
             Assert.Equal(1, await db.Roles.CountAsync());
         }
+    }
+
+    [Fact]
+    public async Task Identity_ChangesPasswordOnlyWithCurrentPassword()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connection));
+        services.AddIdentityCore<ApplicationUser>(options =>
+        {
+            options.Password.RequiredLength = 10;
+            options.Password.RequireDigit = true;
+            options.Password.RequireUppercase = true;
+            options.Password.RequireNonAlphanumeric = true;
+        }).AddRoles<IdentityRole>().AddEntityFrameworkStores<AppDbContext>();
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = "operator" };
+        Assert.True((await users.CreateAsync(user, "Old!Password2026")).Succeeded);
+
+        var rejected = await users.ChangePasswordAsync(user, "incorrect", "New!Password2026");
+        Assert.False(rejected.Succeeded);
+        Assert.True(await users.CheckPasswordAsync(user, "Old!Password2026"));
+
+        var changed = await users.ChangePasswordAsync(user, "Old!Password2026", "New!Password2026");
+        Assert.True(changed.Succeeded);
+        Assert.False(await users.CheckPasswordAsync(user, "Old!Password2026"));
+        Assert.True(await users.CheckPasswordAsync(user, "New!Password2026"));
     }
 }

@@ -32,7 +32,7 @@
     <header>
         <h2>Register a machine manually</h2>
         <div class="actions">
-            <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="Vm.PruneAsync">Prune expired</button>
+            <button class="btn ghost" disabled="@Vm.IsBusy" @onclick="ConfirmPruneAsync">Prune expired</button>
         </div>
     </header>
     <div class="form-row">
@@ -107,6 +107,13 @@
     private bool IsWindowsSetupBusy { get; set; }
     private bool WindowsSetupError { get; set; }
     private string? WindowsSetupMessage { get; set; }
+
+    private async Task ConfirmPruneAsync()
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            "Permanently delete machines that have not sent a heartbeat for more than 10 minutes?");
+        if (confirmed) await Vm.PruneAsync();
+    }
 
     private async Task DownloadWindowsSetupAsync()
     {

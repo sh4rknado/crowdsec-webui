@@ -106,6 +106,71 @@ public sealed class BlazorScriptReferenceTests
     }
 
     [Fact]
+    public void CrowdSecConsolePage_RestrictsAlertSharingToAdministrators()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "CrowdSecConsole.razor");
+        Assert.True(File.Exists(path), $"CrowdSecConsole.razor not found at {path}");
+        var markup = File.ReadAllText(path);
+
+        Assert.Contains("<AuthorizeView Roles=\"Administrator\">", markup);
+        Assert.Contains("Enable alert sharing", markup);
+        Assert.Contains("Disable alert sharing", markup);
+    }
+
+    [Fact]
+    public void BouncersPage_ConfirmsInactivePruneBeforeCallingViewModel()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "Bouncers.razor");
+        var markup = File.ReadAllText(path);
+
+        Assert.Contains("@onclick=\"ConfirmPruneAsync\"", markup);
+        Assert.Contains("JS.InvokeAsync<bool>(\"confirm\"", markup);
+        Assert.Contains("if (confirmed)", markup);
+        Assert.Contains("more than 60 minutes", markup);
+    }
+
+    [Fact]
+    public void MachinesPage_ConfirmsExpiredPruneBeforeCallingViewModel()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "Machines.razor");
+        var markup = File.ReadAllText(path);
+
+        Assert.Contains("@onclick=\"ConfirmPruneAsync\"", markup);
+        Assert.Contains("JS.InvokeAsync<bool>(\"confirm\"", markup);
+        Assert.Contains("if (confirmed) await Vm.PruneAsync();", markup);
+        Assert.Contains("more than 10 minutes", markup);
+    }
+
+    [Fact]
+    public void ConfigEditor_ConfirmsDiscardBeforeReloadAndSupportsZipImport()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "ConfigEditor.razor");
+        var markup = File.ReadAllText(path);
+
+        Assert.Contains("@onclick=\"ConfirmReloadAsync\"", markup);
+        Assert.Contains("JS.InvokeAsync<bool>(\"confirm\"", markup);
+        Assert.Contains("if (!confirmed) return;", markup);
+        Assert.Contains("await Vm.ReloadAsync();", markup);
+        Assert.Contains("<InputFile OnChange=\"ImportYamlZipAsync\" accept=\".zip,application/zip\"", markup);
+        Assert.Contains("OpenReadStream(maxAllowedSize: 30 * 1024 * 1024)", markup);
+        Assert.Contains("Vm.ReportImportError(ex.Message)", markup);
+    }
+
+    [Fact]
+    public void AccountPage_RequiresAdministratorAndValidatesPasswordConfirmation()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "Account.razor");
+        var markup = File.ReadAllText(path);
+        var formPath = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "ViewModels", "AccountPasswordChangeForm.cs");
+        var form = File.ReadAllText(formPath);
+
+        Assert.Contains("@attribute [Authorize(Roles = \"Administrator\")]", markup);
+        Assert.Contains("AccountPasswordChangeForm _form", markup);
+        Assert.Contains("MinimumLength = 10", form);
+        Assert.Contains("[Compare(nameof(NewPassword)", form);
+    }
+
+    [Fact]
     public void RoutesRazor_ContainsRouter()
     {
         var routes = ReadRoutesRazor();

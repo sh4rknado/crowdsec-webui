@@ -27,7 +27,7 @@ a single `systemctl start`.
 | **LAPI** | Show Local API status (`cscli lapi status`), register a machine against a remote LAPI (`cscli lapi register --machine/--url/--token`), and list LAPI contexts (`cscli lapi context list`). |
 | **Simulation** | Toggle global simulation mode (`cscli simulation enable/disable`) and manage per-scenario simulation entries (`add`/`remove`/`list`). Useful to dry-run new scenarios without enforcing bans. |
 | **Notifications** | Guided setup for Slack, HTTP webhooks, and email. Creates plugin YAML, adds/removes its managed CrowdSec notification profile, filters by alert scope, and lists/inspects configured plugins. |
-| **Console** | Show CrowdSec Central API registration status (`cscli console status`) and toggle alert sharing (`console enable/disable alerts`). |
+| **Console** | In **Advanced → CrowdSec Console**, show Central API registration status (`cscli console status`) and toggle alert sharing (`console enable/disable alerts`). |
 | **Configuration editor** | Whitelisted YAML config files edited in a textarea with live YAML validation, on-demand tar backup of the whole `/etc/crowdsec` directory, and `cscli config` tools: show merged config, show merged (YAML), feature flags, backup. |
 | **Authentication** | ASP.NET Identity with SQLite, cookie auth, configurable password policy, admin role seeded on first boot. |
 
@@ -108,7 +108,8 @@ crowdsec-manager/
 │       │   │   ├── LapiPage.razor         ★ LAPI status, register, contexts
 │       │   │   ├── Simulation.razor         ★ dry-run scenarios (cscli simulation)
 │       │   │   ├── Notifications.razor      ★ list/inspect plugins (cscli notifications)
-│       │   │   ├── ConsolePage.razor        ★ Central API status (cscli console)
+│       │   │   ├── ConsolePage.razor        ★ Safe cscli terminal
+│       │   │   ├── CrowdSecConsole.razor    ★ Central API status and alert sharing
 │       │   │   ├── ConfigEditor.razor       ★ edit YAML config
 │       │   │   ├── Login.razor
 │       │   │   └── Logout.razor
@@ -355,8 +356,9 @@ central LAPI.
    **Register machine**. The output (including the generated credentials file
    path) is shown in a `<details>` block.
 2. To remove a machine, click **Delete** on its row.
-3. Use **Prune expired** in the header to remove machines that have not pushed
-   in a while (`cscli machines prune`).
+3. Use **Prune expired** in the header to remove machines that have not sent a
+   heartbeat for more than 10 minutes (`cscli machines prune --duration 10m`).
+   The app asks for confirmation before pruning.
 
 ### LAPI
 

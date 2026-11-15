@@ -107,11 +107,11 @@ assert_not_contains 'MapFallbackToPage' "${program_file}"
 host_file="${repo_root}/src/CrowdSecManager/Pages/_Host.cshtml"
 assert_file_missing "${host_file}"
 
-# ---------- 7. Dockerfile installs ASP.NET 10 runtime (provides blazor.web.js) ----------
+# ---------- 7. Dockerfile copies the ASP.NET 10 runtime stage ----------
 
 dockerfile="${repo_root}/Dockerfile"
-assert_contains '--runtime aspnetcore' "${dockerfile}"
-assert_contains '--channel 10.0' "${dockerfile}"
+assert_contains 'FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS aspnet-runtime' "${dockerfile}"
+assert_contains 'COPY --from=aspnet-runtime /usr/share/dotnet /usr/share/dotnet' "${dockerfile}"
 
 # ---------- 8. The new App.razor uses typeof(Routes), not typeof(App), for the Router assembly ----------
 

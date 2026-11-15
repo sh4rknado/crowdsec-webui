@@ -140,7 +140,9 @@ public static class CrowdSecCommandBuilder
         => new[] { "machines", "add", machineName, "--auto", "--url", lapiUrl, "--file", "-" };
 
     public static IReadOnlyList<string> MachinesPrune()
-        => new[] { "machines", "prune" };
+        // Machines are considered stale after 10 minutes without a heartbeat
+        // (cscli default); force keeps the web process non-interactive.
+        => new[] { "machines", "prune", "--duration", "10m", "--force" };
 
     // ---- Bouncers (cscli bouncers) ----
 
@@ -148,9 +150,9 @@ public static class CrowdSecCommandBuilder
         => new[] { "bouncers", "inspect", name };
 
     public static IReadOnlyList<string> BouncersPrune()
-        // The UI confirms this destructive action before calling cscli, so skip
-        // cscli's interactive prompt (which has no stdin in the web process).
-        => new[] { "bouncers", "prune", "--force" };
+        // The UI confirms this destructive action before calling cscli. Keep the
+        // documented 1h inactivity threshold explicit and skip cscli's prompt.
+        => new[] { "bouncers", "prune", "--duration", "1h", "--force" };
 
     /// <summary>Build "cscli bouncers add NAME [--key KEY]".
     /// The bouncer name is a required positional argument (cscli uses args.ExactArgs(1)).
