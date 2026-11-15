@@ -714,3 +714,31 @@ node edge-case-tests.test.mjs        # Webhooks, ZIP, Push, WebSocket (+20 tests
 8. `edge-case-tests.test.mjs` - Tests Edge Cases (+20 tests) ✅ NOUVEAU
 
 **Total :** 8 fichiers de tests JavaScript E2E complets ! 🚀
+
+---
+
+## 🆕 Mise à jour — tests des acquisitions (2026-11-15)
+
+### `src/CrowdSecManager.ViewModels.Tests/AcquisitionCreateViewModelTests.cs`
+
+7 tests xUnit ont été ajoutés pour le nouveau `AcquisitionCreateViewModel` :
+
+- [X] `CreateAcquisition_ValidatesAndSavesCorrectPath` — validation et sauvegarde sous `acquis.d/`
+- [X] `CreateAcquisition_HandlesFileNameAndExtension` — extensions `.yaml`, `.yml` et ajout automatique de `.yaml`
+- [X] `CreateAcquisition_RejectsInvalidYamlWithoutSaving` — erreur YAML et absence d’appel à `Save`
+- [X] `CreateAcquisition_ReportsSaveFailure` — propagation d’une erreur de sauvegarde
+- [X] `CreateAcquisition_RequiresFileName` — nom de fichier obligatoire
+- [X] `CreateAcquisition_RequiresContent` — contenu YAML obligatoire
+- [X] `Clear_ResetsState` — remise à zéro de l’état du formulaire
+
+### Vérifications effectuées
+
+- Le projet cible `net10.0` et le SDK .NET 10.0.404 a été installé localement dans `/root/workspace/.dotnet`.
+- `dotnet test src/CrowdSecManager.ViewModels.Tests/CrowdSecManager.ViewModels.Tests.csproj --no-restore` : **128/128 tests passés**.
+- La commande globale `dotnet test --no-restore` n’est pas applicable : aucune solution ou projet n’est présent à la racine du dépôt.
+- `dotnet test src/CrowdSecManager.Tests/CrowdSecManager.Tests.csproj` : **bloqué à la compilation avant exécution** par des erreurs préexistantes du projet historique : dépendance `Moq` absente, namespaces `CrowdSecManager.Services.Mocks` absents et définitions dupliquées de `BlazorScriptReferenceTests`.
+- Les tests JavaScript n’ont pas été exécutés : aucun `package.json` ni dossier `tests/javascript` correspondant n’a été trouvé dans ce dépôt.
+
+### Régression vérifiée
+
+Les tests ajoutés ciblent uniquement la nouvelle logique `AcquisitionCreateViewModel`. La suite ViewModels existante a été exécutée avec succès : **128 tests passés, 0 échec, 0 ignoré**. La suite historique complète reste bloquée par sa propre configuration de compilation, indépendamment des changements d’acquisition. Le nombre de tests documenté est augmenté de 7 tests .NET.
