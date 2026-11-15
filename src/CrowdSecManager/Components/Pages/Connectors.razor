@@ -8,7 +8,7 @@
     <header class="advanced-header">
         <div>
             <h1>Connectors</h1>
-            <p class="muted">Manage CrowdSec machines, bouncers and the Local API.</p>
+            <p class="muted">Manage CrowdSec machines, bouncers, the Local API and Central API alert sharing.</p>
         </div>
     </header>
 
@@ -28,6 +28,7 @@
         {
             case "machines": <Machines /> break;
             case "bouncers": <Bouncers /> break;
+            case "crowdsec-console": <CrowdSecConsole /> break;
             default: <LapiPage /> break;
         }
     </div>
@@ -39,6 +40,7 @@
     [
         ("machines", "Machines", "▦"),
         ("bouncers", "Bouncers", "⛨"),
+        ("crowdsec-console", "CrowdSec Console", "☁"),
         ("lapi", "LAPI", "⇄")
     ];
 }
