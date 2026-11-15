@@ -60,6 +60,7 @@ builder.Services.AddTransient<CrowdSecManager.ViewModels.CrowdSecConsoleViewMode
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ConfigEditorViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.ThreatMapViewModel>();
 builder.Services.AddTransient<CrowdSecManager.ViewModels.NotificationsViewModel>();
+builder.Services.AddTransient<CrowdSecManager.ViewModels.AcquisitionCreateViewModel>();
 builder.Services.AddScoped<IAppBackupService, AppBackupService>();
 builder.Services.AddScoped<IWindowsClientProvisioningService, WindowsClientProvisioningService>();
 

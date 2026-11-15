@@ -1,6 +1,8 @@
 @page "/acquisition"
 @attribute [Authorize]
 @inherits ViewModelComponentBase<ExplainViewModel>
+@inject AcquisitionCreateViewModel CreateVm
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Acquisition &middot; CrowdSec Manager</PageTitle>
 
@@ -65,6 +67,40 @@
 }
 
 <section class="card">
+    <header>
+        <h2>Create an acquisition file</h2>
+        <div class="actions">
+            <button class="btn ghost" @onclick="CreateVm.Clear">Clear</button>
+        </div>
+    </header>
+    <p class="muted small">
+        Write a CrowdSec acquisition YAML file under <code class="mono">acquis.d/</code>.
+        CrowdSec will pick it up on the next reload.
+    </p>
+
+    <div class="form-row">
+        <label>File name
+            <input type="text" @bind="CreateVm.FileName" placeholder="my-app.yaml" />
+        </label>
+    </div>
+
+    <div class="form-row">
+        <label style="flex: 1 1 100%;">YAML content
+            <textarea class="yml-editor" spellcheck="false" @bind="CreateVm.Content" @bind:event="oninput"></textarea>
+        </label>
+    </div>
+
+    <div class="actions">
+        <button class="btn primary" disabled="@CreateVm.IsBusy || string.IsNullOrWhiteSpace(CreateVm.Content)" @onclick="CreateAcquisitionAsync">Create acquisition file</button>
+    </div>
+
+    @if (CreateVm.Message is not null)
+    {
+        <div class="@(CreateVm.HasError ? "err" : "ok") _msg" role="status">@CreateVm.Message</div>
+    }
+</section>
+
+<section class="card">
     <header><h2>Common acquisition types</h2></header>
     <div class="muted small">
         <p>The <code>--type</code> flag must match a label declared in <code class="mono">acquis.yaml</code> or one of the\nwell-known types shipped with CrowdSec parsers:</p>
@@ -79,3 +115,10 @@
         <p>The acquisition type tells CrowdSec which parser chain to apply. The label is matched against the\n<code>type</code> field in <code class="mono">acquis.yaml</code>.</p>
     </div>
 </section>
+
+@code {
+    private async Task CreateAcquisitionAsync()
+    {
+        await CreateVm.CreateAcquisitionAsync();
+    }
+}
