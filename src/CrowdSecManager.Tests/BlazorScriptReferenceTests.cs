@@ -171,6 +171,33 @@ public sealed class BlazorScriptReferenceTests
     }
 
     [Fact]
+    public void UsersPage_RequiresAdministratorAndContainsRoleManagementControls()
+    {
+        var path = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Pages", "Users.razor");
+        var markup = File.ReadAllText(path);
+
+        Assert.Contains("@page \"/users\"", markup);
+        Assert.Contains("@attribute [Authorize(Roles = \"Administrator\")]", markup);
+        Assert.Contains("Create user", markup);
+        Assert.Contains("ChangeRoleAsync", markup);
+        Assert.Contains("DeleteAsync", markup);
+        Assert.Contains("Administrator", markup);
+        Assert.Contains("Operator", markup);
+        Assert.Contains("Viewer", markup);
+    }
+
+    [Fact]
+    public void Navigation_PlacesUsersBeforeAdvancedAndTopBarHasTitle()
+    {
+        var navPath = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Layout", "NavMenu.razor");
+        var topBarPath = Path.Combine(FindRepoRoot(), "src", "CrowdSecManager", "Components", "Layout", "TopBar.razor");
+        var nav = File.ReadAllText(navPath);
+        var topBar = File.ReadAllText(topBarPath);
+
+        Assert.True(nav.IndexOf("href=\"/users\"", StringComparison.Ordinal) < nav.IndexOf("href=\"/advanced\"", StringComparison.Ordinal));
+        Assert.Contains("\"users\" => \"User management\"", topBar);
+    }
+    [Fact]
     public void RoutesRazor_ContainsRouter()
     {
         var routes = ReadRoutesRazor();

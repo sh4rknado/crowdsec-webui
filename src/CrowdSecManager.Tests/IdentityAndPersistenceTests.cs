@@ -132,10 +132,14 @@ public sealed class IdentityAndPersistenceTests
             await DbSeeder.SeedAsync(scope.ServiceProvider);
 
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var user = await users.FindByNameAsync("operator");
             Assert.NotNull(user);
             Assert.True(await users.CheckPasswordAsync(user!, "Strong!Password2026"));
             Assert.True(await users.IsInRoleAsync(user!, "Administrator"));
+            Assert.True(await roleMgr.RoleExistsAsync("Operator"));
+            Assert.True(await roleMgr.RoleExistsAsync("Viewer"));
+            Assert.Equal(3, await db.Roles.CountAsync());
             Assert.True((await users.RemoveFromRoleAsync(user!, "Administrator")).Succeeded);
             await DbSeeder.SeedAsync(scope.ServiceProvider);
             Assert.True(await users.IsInRoleAsync(user!, "Administrator"));

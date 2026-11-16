@@ -742,3 +742,20 @@ node edge-case-tests.test.mjs        # Webhooks, ZIP, Push, WebSocket (+20 tests
 ### Régression vérifiée
 
 Les tests ajoutés ciblent uniquement la nouvelle logique `AcquisitionCreateViewModel`. La suite ViewModels existante a été exécutée avec succès : **128 tests passés, 0 échec, 0 ignoré**. La suite historique complète reste bloquée par sa propre configuration de compilation, indépendamment des changements d’acquisition. Le nombre de tests documenté est augmenté de 7 tests .NET.
+
+## 🆕 Mise à jour — gestion des utilisateurs et des rôles (2026-11-15)
+
+### Tests mis à jour et ajoutés
+
+- `IdentityAndPersistenceTests.DbSeeder_CreatesAdministratorAndIsIdempotent` vérifie désormais la création idempotente des trois rôles : `Administrator`, `Operator` et `Viewer`.
+- `BlazorScriptReferenceTests.UsersPage_RequiresAdministratorAndContainsRoleManagementControls` vérifie la route `/users`, la restriction Administrator et les contrôles de création, changement de rôle et suppression.
+- `BlazorScriptReferenceTests.Navigation_PlacesUsersBeforeAdvancedAndTopBarHasTitle` vérifie que Users est placé avant Advanced et que le titre de la TopBar est déclaré.
+
+### Résultat de vérification
+
+- Build applicatif `dotnet build src/CrowdSecManager/CrowdSecManager.csproj --no-restore` : **réussi, 0 erreur, 0 avertissement**.
+- Suite ViewModels : **128/128 tests passés**.
+- Suite `CrowdSecManager.Tests` : non exécutable actuellement, car elle échoue à la compilation sur des problèmes historiques indépendants : dépendance `Moq` absente, namespaces `CrowdSecManager.Services.Mocks` absents et classe `BlazorScriptReferenceTests` dupliquée dans `ViewModelInteractionTests.cs`.
+- Les nouveaux tests d’intégration Identity et de markup sont donc écrits mais ne peuvent pas encore être exécutés tant que ces erreurs de compilation préexistantes ne sont pas corrigées.
+
+Le résumé documente désormais les tests couvrant la page Users, la navigation et le seeding des rôles ASP.NET Core Identity.
