@@ -144,7 +144,7 @@ public sealed class IdentityAndPersistenceTests
             await DbSeeder.SeedAsync(scope.ServiceProvider);
             Assert.True(await users.IsInRoleAsync(user!, "Administrator"));
             Assert.Equal(1, await db.Users.CountAsync());
-            Assert.Equal(1, await db.Roles.CountAsync());
+            Assert.Equal(3, await db.Roles.CountAsync());
         }
     }
 

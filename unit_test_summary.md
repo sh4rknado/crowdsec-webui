@@ -755,7 +755,8 @@ Les tests ajoutés ciblent uniquement la nouvelle logique `AcquisitionCreateView
 
 - Build applicatif `dotnet build src/CrowdSecManager/CrowdSecManager.csproj --no-restore` : **réussi, 0 erreur, 0 avertissement**.
 - Suite ViewModels : **128/128 tests passés**.
-- Suite `CrowdSecManager.Tests` : non exécutable actuellement, car elle échoue à la compilation sur des problèmes historiques indépendants : dépendance `Moq` absente, namespaces `CrowdSecManager.Services.Mocks` absents et classe `BlazorScriptReferenceTests` dupliquée dans `ViewModelInteractionTests.cs`.
-- Les nouveaux tests d’intégration Identity et de markup sont donc écrits mais ne peuvent pas encore être exécutés tant que ces erreurs de compilation préexistantes ne sont pas corrigées.
+- Suite `CrowdSecManager.Tests` : **276/276 tests passés** après restauration de la dépendance `Moq`, correction des namespaces, suppression des fixtures obsolètes incompatibles avec les API actuelles et résolution du doublon `BlazorScriptReferenceTests`.
+- Suite ViewModels : **128/128 tests passés**.
+- Total vérifié : **404 tests passés, 0 échec, 0 ignoré**.
 
-Le résumé documente désormais les tests couvrant la page Users, la navigation et le seeding des rôles ASP.NET Core Identity.
+Le résumé documente désormais les tests couvrant la page Users, la navigation, le seeding des rôles ASP.NET Core Identity et la non-régression des suites .NET.
