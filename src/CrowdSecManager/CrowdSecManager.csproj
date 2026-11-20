@@ -12,6 +12,8 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
     <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+    <!-- Assembly version with semver format (e.g., 1.0.0) for podman tags -->
+    <AssemblyVersion>1.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,6 +42,16 @@
     <None Update="appsettings.Development.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <!-- Docker tag with AssemblyVersion from csproj -->
+  <PropertyGroup>
+    <DockerTag Condition="'$(AssemblyVersion)' != ''">${AssemblyVersion}</DockerTag>
+    <DockerTag Condition="'$(DockerTag)' == ''">latest</DockerTag>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Docker tag will be baked into the final image as 'crowdsec-dashboard:${DockerTag}' -->
   </ItemGroup>
 
   <ItemGroup>

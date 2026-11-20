@@ -54,10 +54,6 @@ Volume=/opt/crowdsec/dashboard:/var/lib/crowdsec-manager:Z
 # Edit /etc/crowdsec/acquis.yaml (or drop a file in /etc/crowdsec/acquis.d/)
 # to point CrowdSec at log paths visible here, e.g. /var/log/nginx/access.log.
 Volume=/var/log:/var/log:Z
-# NPMplus HTTP logs (read-only). This directory is also mounted by NPMplus,
-# so use the shared SELinux label (:z), not a private relabel (:Z).
-# Configure acquis.d/npmplus.yaml to read /opt/npmplus/nginx/logs/access.log.
-Volume=/opt/containers/npm/data/nginx/logs:/opt/npmplus/nginx/logs:ro,z
 
 # Container access
 Volume=/run/podman/podman.sock:/var/run/docker.sock

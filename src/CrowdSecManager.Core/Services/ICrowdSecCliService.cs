@@ -15,7 +15,6 @@ public interface ICrowdSecCliService
     Task<CliResult> InstallItemAsync(string type, string name, CancellationToken ct = default);
     Task<CliResult> RemoveItemAsync(string type, string name, CancellationToken ct = default);
     Task<IReadOnlyList<CsAlert>> ListAlertsAsync(int limit = 100, CancellationToken ct = default);
-    Task<CliResult> InspectAlertAsync(long alertId, CancellationToken ct = default);
     Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(CancellationToken ct = default);
     Task<CliResult> AddDecisionAsync(string ip, string duration = "4h", string? reason = null, string type = "ban", bool bypassAllowlist = false, CancellationToken ct = default);
     Task<CliResult> DeleteDecisionAsync(string? ip = null, long? id = null, bool all = false, CancellationToken ct = default);

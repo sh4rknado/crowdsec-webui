@@ -13,9 +13,11 @@
 
 # Global build arguments (declared BEFORE the first FROM so they can be used
 # in FROM lines). Override on the command line, e.g.:
-#   podman build --build-arg CROWDSEC_IMAGE=crowdsecurity/crowdsec:v1.6.8 ...
+#   podman build --build-arg CROWDSEC_IMAGE=crowdsecurity/crowdsec:v1.6.8 \
+#                 --build-arg APP_TAG=latest
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
 ARG CROWDSEC_IMAGE=crowdsecurity/crowdsec:latest
+ARG APP_TAG=latest
 
 # ---------- Stage 1: build the .NET app ----------
 FROM ${DOTNET_SDK_IMAGE} AS build
@@ -46,6 +48,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS aspnet-runtime
 # ---------- Stage 2: runtime (CrowdSec + ASP.NET in ONE container) ----------
 # Pin a version in production instead of :latest, e.g. crowdsecurity/crowdsec:v1.6.x
 FROM ${CROWDSEC_IMAGE} AS runtime
+
+# Set default tag to latest if not specified
+ENV APP_TAG=${APP_TAG:-latest}
 
 # Sanity-check that the CrowdSec base image ships its initializer and a
 # staged default config. The entrypoint relies on these.
