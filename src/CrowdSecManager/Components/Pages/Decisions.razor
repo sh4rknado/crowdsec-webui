@@ -19,11 +19,14 @@
         <label>Reason
             <input type="text" @bind="Vm.Reason" placeholder="Manual SOC decision" />
         </label>
-        <label class="checkbox">
-            <input type="checkbox" @bind="Vm.BypassAllowlist" />
-            <span>Bypass allowlist</span>
-            <small class="muted">Force the ban even if the IP is in a CrowdSec allowlist.</small>
-        </label>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" @bind="Vm.BypassAllowlist" id="bypassAllowlist" />
+            <label class="form-check-label" for="bypassAllowlist">
+                Bypass allowlist
+                <br />
+                <small class="muted">Force the ban even if the IP is in a CrowdSec allowlist.</small>
+            </label>
+        </div>
         <button class="btn primary" disabled="@Vm.IsAdding" @onclick="Vm.AddAsync">Ban IP</button>
     </div>
     @if (Vm.Message is not null) { <div class="@(Vm.HasError ? "err" : "ok") _msg">@Vm.Message</div> }
