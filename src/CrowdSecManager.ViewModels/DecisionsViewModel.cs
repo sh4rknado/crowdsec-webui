@@ -42,7 +42,7 @@ public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliServ
     {
         ArgumentNullException.ThrowIfNull(decision);
         InspectedDecision = decision;
-        RelatedAlerts = decision.Alerts ?? [];
+        RelatedAlerts = [];
         AlertInspectOutput = null;
         IsInspecting = true;
         try

@@ -78,14 +78,20 @@
         <table class="data">
             <thead><tr><th>IP</th><th>Scenario</th><th>Type</th><th>Expires</th><th></th></tr></thead>
             <tbody>
-                @foreach (var d in Vm.RecentDecisions.Take(15))
+                @foreach (var alert in Vm.RecentDecisions.Take(15))
                 {
+                    var decision = alert.Decisions.FirstOrDefault();
                     <tr>
-                        <td class="mono">@d.Value</td>
-                        <td>@(d.Scenario ?? "manual")</td>
-                        <td>@(d.Type ?? "ban")</td>
-                        <td>@(d.ExpiresAt == default ? "—" : d.ExpiresAt.ToLocalTime().ToString("u"))</td>
-                        <td><button class="btn mini danger" @onclick="async () => await Vm.DeleteDecisionAsync(d.Id)">Delete</button></td>
+                        <td class="mono">@(decision?.Value ?? alert.Source?.Value ?? "—")</td>
+                        <td>@(alert.Scenario ?? "manual")</td>
+                        <td>@(decision?.Type ?? "ban")</td>
+                        <td>@(decision?.Until ?? "—")</td>
+                        <td>
+                            @if (decision is not null)
+                            {
+                                <button class="btn mini danger" @onclick="async () => await Vm.DeleteDecisionAsync(decision.Id)">Delete</button>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>

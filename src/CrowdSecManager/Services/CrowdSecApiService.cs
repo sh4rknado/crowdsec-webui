@@ -69,7 +69,7 @@ public sealed class CrowdSecApiService : ICrowdSecApiService
         try
         {
             var decisions = await GetDecisionsAsync(ct);
-            stats.TotalDecisions = decisions.Count;
+            stats.TotalDecisions = decisions.Sum(decision => decision.Decisions.Count > 0 ? decision.Decisions.Count : 1);
 
             var alerts = await GetAlertsAsync(500, ct);
             stats.TotalAlerts = alerts.Count;
