@@ -363,6 +363,20 @@ table.data tbody tr:hover td {
 
 .mono { font-family: var(--mono); font-size: 12px; }
 
+.decision-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
+    gap: 8px 14px;
+    margin: 18px 0 24px;
+}
+.decision-detail-grid dt { color: var(--text-mut); }
+.decision-detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+.decision-detail-grid.compact { margin: 12px 0; }
+.decision-alert-detail { border-top: 1px solid var(--border); padding: 16px 0; }
+.decision-alert-detail h4 { margin: 0 0 6px; }
+.decision-event-detail { margin: 8px 0; padding: 10px 12px; background: var(--bg); border-radius: var(--radius); }
+.decision-event-detail summary { cursor: pointer; color: var(--accent); }
+
 /* ============= Forms ============= */
 .form-row {
     display: flex;

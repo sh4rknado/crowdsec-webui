@@ -18,7 +18,8 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd)"
-image="docker.io/cobrakaii/crowdsec-dashboard:latest"
+image_repo="docker.io/cobrakaii/crowdsec-dashboard"
+image="${image_repo}:latest"
 
 echo "Rebuilding ${image} and refreshing the CrowdSec base image..."
 podman build --network=host --format docker --pull=always --no-cache -t "${image}" -f "${repo_dir}/Dockerfile" "${repo_dir}"
@@ -28,30 +29,30 @@ echo "Reading AssemblyVersion from the main application project..."
 main_project="${repo_dir}/src/CrowdSecManager/CrowdSecManager.csproj"
 if [[ -f "$main_project" ]]; then
     # Get AssemblyVersion property (default to 1.0.0 if not found)
-    version_tag=$(grep -oP '<AssemblyVersion>\K[^<]+' "${main_project}" | tr -d ' ')
+    version_tag="$(sed -n 's:.*<AssemblyVersion>\([^<]*\)</AssemblyVersion>.*:\1:p' "$main_project" | head -n1 | tr -d '[:space:]')"
     
     # If no AssemblyVersion was explicitly set, extract from obj/ directory or use default
     if [[ -z "$version_tag" ]]; then
         echo "No explicit AssemblyVersion found, using latest tag..."
         version_tag="latest"
-    else
+    elif [[ "$version_tag" =~ ^[0-9]+(\.[0-9]+){1,3}([+-][A-Za-z0-9.-]+)?$ ]]; then
         # Clean the version tag (remove any suffixes)
-        version_tag=$(echo "$version_tag" | cut -d',' -f1 | tr -d '()[]"\'')
+        # AssemblyVersion is already a plain numeric version.
         echo "Detected AssemblyVersion: ${version_tag}"
         
         # Create a versioned tag
-        versioned_image="${image}:${version_tag}"
+        versioned_image="${image_repo}:${version_tag}"
         echo "Creating versioned image tag: ${versioned_image}"
+    else
+        echo "Invalid AssemblyVersion ${version_tag}; expected a numeric semantic version." >&2
+        exit 1
     fi
 else
     version_tag="latest"
 fi
 
-# Tag with latest and version (if applicable)
-podman tag "${image}" "${image}:latest"
-
 if [[ "$version_tag" != "latest" ]]; then
-    podman tag "${image}" "${image}:${version_tag}"
+    podman tag "${image}" "${versioned_image}"
 fi
 
 echo ""
@@ -62,14 +63,14 @@ podman run --rm --network=none --entrypoint /bin/ls "${image}" -lh /var/lib/GeoI
 echo ""
 echo "Image is ready to push: podman push ${image}"
 if [[ "$version_tag" != "latest" ]]; then
-    echo "Also available as: podman push ${image}:${version_tag}"
+    echo "Also available as: podman push ${versioned_image}"
 fi
 
 # Push the images (and versioned one if applicable)
 podman push "${image}"
 
 if [[ "$version_tag" != "latest" ]]; then
-    podman push "${image}:${version_tag}"
+    podman push "${versioned_image}"
 fi
 
 echo ""
