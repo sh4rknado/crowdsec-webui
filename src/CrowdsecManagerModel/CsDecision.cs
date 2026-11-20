@@ -15,11 +15,18 @@ public sealed class CsDecision
     public string? Type { get; set; }
     public string? Scope { get; set; }
     public string? Value { get; set; }
+    [JsonPropertyName("duration")]
     public string? Duration { get; set; }
+    [JsonPropertyName("until")]
+    public string? Until { get; set; }
+    [JsonPropertyName("expires_at")]
     public DateTime ExpiresAt { get; set; }
+    [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
+    [JsonPropertyName("ban_tenant")]
     public string? BanTenant { get; set; }
     public bool Simulated { get; set; }
+    [JsonPropertyName("reason")]
     public string? Reason { get; set; }
     public List<CsAlert> Alerts { get; set; } = [];
 }
