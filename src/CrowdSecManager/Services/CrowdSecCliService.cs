@@ -154,6 +154,9 @@ public sealed class CrowdSecCliService(IOptions<CrowdSecOptions> opt, ILogger<Cr
         return alerts ?? new List<CsAlert>();
     }
 
+    public Task<CliResult> InspectAlertAsync(long alertId, CancellationToken ct = default)
+        => RunTerminalAsync($"alerts inspect {alertId.ToString(CultureInfo.InvariantCulture)} -d", ct);
+
     public async Task<IReadOnlyList<CsDecision>> ListDecisionsAsync(CancellationToken ct = default)
     {
         var decisions = await RunJsonAsync<List<CsDecision>>(new[] { "decisions", "list" }, ct);

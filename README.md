@@ -232,6 +232,7 @@ alternative to a `docker run` line. Highlights:
 | `Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z` | rw | CrowdSec SQLite DB |
 | `Volume=/var/lib/crowdsec-manager:/var/lib/crowdsec-manager:Z` | rw | app DB + backups |
 | `Volume=/var/log:/var/log:ro,Z` | ro | CrowdSec log sources |
+| `Volume=/opt/containers/npm/data/nginx/logs:/opt/npmplus/nginx/logs:ro,z` | ro | NPMplus access/error logs (shared SELinux label) |
 | `Environment=ADMIN_USER=admin` | | seed user |
 | `Environment=ADMIN_PASSWORD=...` | | first-boot seed password |
 | `Notify=healthy` | | wait for `HEALTHCHECK` before marking unit started |
@@ -239,6 +240,57 @@ alternative to a `docker run` line. Highlights:
 
 The `:Z` private-volume flag tells Podman to relabel the bind-mount so
 SELinux-enabled hosts (RHEL/Fedora) do not block access.
+
+### Ingesting NPMplus logs
+
+The manager Quadlet mounts the NPMplus log directory read-only at
+`/opt/npmplus/nginx/logs` inside the CrowdSec container. This assumes NPMplus
+stores its persistent data at `/opt/containers/npm/data`; change the left side
+of that `Volume=` line if your host path differs. The shared `:z` SELinux label
+is intentional because NPMplus and CrowdSec both need access to this directory.
+
+1. Set `LOGROTATE=true` for NPMplus and restart/recreate that container so its
+   access log is written to disk. Current NPMplus versions store it at
+   `/data/nginx/logs/access.log` in the NPMplus container.
+2. Install the updated Quadlet and restart the manager:
+
+   ```bash
+   sudo install -m 0644 deploy/crowdsec-manager.container /etc/containers/systemd/
+   sudo systemctl daemon-reload
+   sudo systemctl restart crowdsec-manager.service
+   ```
+
+3. Create `/opt/crowdsec/config/acquis.d/npmplus.yaml` on the host:
+
+   ```yaml
+   filenames:
+     - /opt/npmplus/nginx/logs/access.log
+   labels:
+     type: npmplus
+   ```
+
+   Add `/opt/npmplus/nginx/logs/error.log` to `filenames` too if you want to
+   parse Nginx rate-limit events. NPMplus writes failed basic-auth attempts to
+   both logs, so including both can count those attempts twice.
+4. Install the NPMplus collection and restart the engine to load it:
+
+   ```bash
+   sudo podman exec crowdsec-manager cscli collections install ZoeyVid/npmplus
+   sudo systemctl restart crowdsec-manager.service
+   ```
+
+5. Confirm the files are visible and CrowdSec is ingesting them:
+
+   ```bash
+   sudo podman exec crowdsec-manager ls -l /opt/npmplus/nginx/logs
+   sudo podman exec crowdsec-manager cscli metrics show acquisition
+   sudo podman exec crowdsec-manager cscli metrics show parsers
+   sudo podman exec crowdsec-manager cscli metrics show scenarios
+   ```
+
+   The acquisition metrics should include the NPMplus log source. If they do
+   not, first check the host path and the Quadlet bind mount. `LOGROTATE=true`
+   is required for CrowdSec to read the NPMplus access log from disk.
 
 ### Common operations
 
