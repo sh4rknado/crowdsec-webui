@@ -21,6 +21,10 @@ public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliServ
     public bool HasError { get; set => SetProperty(ref field, value); }
 
     public IReadOnlyList<CsDecision> Decisions { get; private set => SetProperty(ref field, value); } = [];
+    public CsDecision? InspectedDecision { get; private set => SetProperty(ref field, value); }
+    public IReadOnlyList<CsAlert> RelatedAlerts { get; private set => SetProperty(ref field, value); } = [];
+    public bool IsInspecting { get; private set => SetProperty(ref field, value); }
+    public string? AlertInspectOutput { get; private set => SetProperty(ref field, value); }
 
     public override Task InitializeAsync() => RefreshAsync();
 
@@ -32,6 +36,45 @@ public sealed class DecisionsViewModel(ICrowdSecApiService api, ICrowdSecCliServ
             try { Decisions = await _cli.ListDecisionsAsync(); }
             catch (Exception ex) { _log.LogDebug("decisions: {Msg}", ex.Message); }
         }
+    }
+
+    public async Task InspectAsync(CsDecision decision)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        InspectedDecision = decision;
+        RelatedAlerts = decision.Alerts ?? [];
+        AlertInspectOutput = null;
+        IsInspecting = true;
+        try
+        {
+            if (decision.AlertId is > 0)
+            {
+                var inspect = await _cli.InspectAlertAsync(decision.AlertId.Value);
+                if (inspect.Success)
+                    AlertInspectOutput = inspect.Stdout + (string.IsNullOrWhiteSpace(inspect.Stderr) ? "" : "\n" + inspect.Stderr);
+            }
+
+            if (RelatedAlerts.Count == 0)
+            {
+                var alerts = await _api.GetAlertsAsync(500);
+                RelatedAlerts = alerts
+                    .Where(alert => alert.Id == decision.AlertId || alert.Decisions?.Any(item => item.Id == decision.Id) == true)
+                    .OrderByDescending(alert => alert.CreatedAt)
+                    .ToArray();
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug("Could not load alert details for decision {DecisionId}: {Message}", decision.Id, ex.Message);
+        }
+        finally { IsInspecting = false; }
+    }
+
+    public void CloseInspect()
+    {
+        InspectedDecision = null;
+        RelatedAlerts = [];
+        AlertInspectOutput = null;
     }
 
     public async Task AddAsync()

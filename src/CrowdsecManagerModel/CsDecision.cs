@@ -1,9 +1,15 @@
 namespace CrowdsecManagerModel;
 
+using System.Text.Json.Serialization;
+
 /// <summary>Decision as returned by <c>cscli decisions list -o json</c> / <c>GET /decisions</c>.</summary>
 public sealed class CsDecision
 {
     public long Id { get; set; }
+    [JsonPropertyName("alert_id")]
+    public long? AlertId { get; set; }
+    [JsonPropertyName("alertId")]
+    public long? AlertIdCamelCase { get => AlertId; set { if (value.HasValue) AlertId = value; } }
     public string? Origin { get; set; }
     public string? Scenario { get; set; }
     public string? Type { get; set; }
